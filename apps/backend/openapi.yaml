@@ -1,0 +1,328 @@
+openapi: 3.1.0
+info:
+  title: LibTrack API
+  version: 1.0.0
+  description: API for managing library books
+
+components:
+  schemas:
+    Book:
+      type: object
+      required:
+        - id
+        - isbn
+        - title
+        - state
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier for the book
+        isbn:
+          type: string
+          description: International Standard Book Number
+        title:
+          type: string
+          description: Title of the book
+        pictureUrl:
+          type: string
+          format: uri
+          description: URL to the book's cover image
+        state:
+          $ref: '#/components/schemas/BookState'
+
+    BookState:
+      type: string
+      enum:
+        - checked_out
+        - found
+        - returned
+        - overdue
+
+    PasskeyCredential:
+      type: object
+      required:
+        - id
+        - publicKey
+        - algorithm
+        - authenticatorAttachment
+        - transports
+      properties:
+        id:
+          type: string
+          description: Base64URL encoded credential ID
+        publicKey:
+          type: string
+          description: Base64URL encoded public key
+        algorithm:
+          type: string
+          description: Algorithm used for the credential
+        authenticatorAttachment:
+          type: string
+          enum:
+            - platform
+            - cross-platform
+          description: Type of authenticator used
+        transports:
+          type: array
+          items:
+            type: string
+            enum:
+              - usb
+              - nfc
+              - ble
+              - internal
+          description: List of supported transport methods
+
+    PasskeyRegistrationRequest:
+      type: object
+      required:
+        - name
+        - credential
+      properties:
+        name:
+          type: string
+          description: User's name
+        credential:
+          $ref: '#/components/schemas/PasskeyCredential'
+
+    PasskeyLoginRequest:
+      type: object
+      required:
+        - credentialId
+        - authenticatorData
+        - clientDataJSON
+        - signature
+      properties:
+        credentialId:
+          type: string
+          description: Base64URL encoded credential ID
+        authenticatorData:
+          type: string
+          description: Base64URL encoded authenticator data
+        clientDataJSON:
+          type: string
+          description: Base64URL encoded client data
+        signature:
+          type: string
+          description: Base64URL encoded signature
+
+    User:
+      type: object
+      required:
+        - id
+        - name
+        - credentials
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier for the user
+        name:
+          type: string
+          description: User's name
+        credentials:
+          type: array
+          items:
+            $ref: '#/components/schemas/PasskeyCredential'
+          description: List of registered passkey credentials
+
+    LibraryCard:
+      type: object
+      required:
+        - id
+        - number
+        - pin
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier for the library card
+        number:
+          type: string
+          description: Library card number
+        pin:
+          type: string
+          description: Library card PIN
+
+    BookStateUpdate:
+      type: object
+      required:
+        - id
+        - isbn
+        - state
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier for the book
+        isbn:
+          type: string
+        state:
+          $ref: '#/components/schemas/BookState'
+
+paths:
+  /auth/register:
+    post:
+      summary: Register a new user with passkey
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasskeyRegistrationRequest'
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /auth/login:
+    post:
+      summary: Login with passkey
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasskeyLoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: JWT token for authentication
+                  user:
+                    $ref: '#/components/schemas/User'
+
+  /books:
+    get:
+      summary: Get books by states
+      tags:
+        - Books
+      parameters:
+        - name: states
+          in: query
+          required: true
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/BookState'
+      responses:
+        '200':
+          description: List of books
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Book'
+
+  /books/states:
+    put:
+      summary: Update states of multiple books
+      tags:
+        - Books
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/BookStateUpdate'
+      responses:
+        '200':
+          description: States updated successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Book'
+
+  /library-cards:
+    get:
+      summary: Get list of library cards
+      tags:
+        - Library Cards
+      responses:
+        '200':
+          description: List of library cards
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LibraryCard'
+
+    post:
+      summary: Create a new library card
+      tags:
+        - Library Cards
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - number
+                - pin
+              properties:
+                number:
+                  type: string
+                pin:
+                  type: string
+      responses:
+        '201':
+          description: Library card created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LibraryCard'
+
+  /library-cards/{id}:
+    put:
+      summary: Update a library card
+      tags:
+        - Library Cards
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - number
+                - pin
+              properties:
+                number:
+                  type: string
+                pin:
+                  type: string
+      responses:
+        '200':
+          description: Library card updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LibraryCard' 
