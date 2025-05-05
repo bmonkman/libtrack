@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class InitialSchema1700000000000 implements MigrationInterface {
-  name = 'InitialSchema1700000000000';
+export class InitialSchema implements MigrationInterface {
+  name = 'InitialSchema';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Create enum types first
@@ -14,13 +14,16 @@ export class InitialSchema1700000000000 implements MigrationInterface {
     await queryRunner.query(
       `CREATE TYPE "transport_enum" AS ENUM('usb', 'nfc', 'ble', 'internal')`
     );
+    await queryRunner.query(
+      `CREATE TYPE "library_system_enum" AS ENUM('nwpl')`
+    );
 
     // Create tables
     await queryRunner.query(
       `CREATE TABLE "book" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "isbn" character varying NOT NULL, "title" character varying NOT NULL, "picture_url" character varying, "state" "book_state_enum" NOT NULL DEFAULT 'found', "library_card_id" uuid, CONSTRAINT "PK_book_id" PRIMARY KEY ("id"))`
     );
     await queryRunner.query(
-      `CREATE TABLE "library_card" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "number" character varying NOT NULL, "pin" character varying NOT NULL, CONSTRAINT "PK_library_card_id" PRIMARY KEY ("id"))`
+      `CREATE TABLE "library_card" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "number" character varying NOT NULL, "pin" character varying NOT NULL, "displayName" character varying NOT NULL, "system" "library_system_enum" NOT NULL DEFAULT 'nwpl', CONSTRAINT "PK_library_card_id" PRIMARY KEY ("id"))`
     );
     await queryRunner.query(
       `CREATE TABLE "passkey_credential" ("id" character varying NOT NULL, "public_key" character varying NOT NULL, "algorithm" character varying NOT NULL, "authenticator_attachment" "authenticator_attachment_enum" NOT NULL, "transports" "transport_enum"[] NOT NULL, "user_id" uuid, CONSTRAINT "PK_passkey_credential_id" PRIMARY KEY ("id"))`
@@ -55,5 +58,6 @@ export class InitialSchema1700000000000 implements MigrationInterface {
     await queryRunner.query(`DROP TYPE "transport_enum"`);
     await queryRunner.query(`DROP TYPE "authenticator_attachment_enum"`);
     await queryRunner.query(`DROP TYPE "book_state_enum"`);
+    await queryRunner.query(`DROP TYPE "library_system_enum"`);
   }
 }

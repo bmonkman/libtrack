@@ -1,12 +1,14 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { AppDataSource } from './ormconfig';
 import { LibraryCard } from './entities/LibraryCard';
+import { handleCors } from './utils';
 
 const libraryCardRepository = AppDataSource.getRepository(LibraryCard);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (handleCors(req, res)) return;
+
   try {
-    // Initialize database connection
     if (!AppDataSource.isInitialized) {
       await AppDataSource.initialize();
     }
@@ -18,23 +20,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       case 'POST': {
-        const { number, pin } = req.body;
+        const { number, pin, displayName } = req.body;
 
-        if (!number || !pin) {
-          return res.status(400).json({ error: 'Number and PIN are required' });
+        if (!number || !pin || !displayName) {
+          return res.status(400).json({ error: 'Number, PIN, and display name are required' });
         }
 
-        const libraryCard = libraryCardRepository.create({ number, pin });
+        const libraryCard = libraryCardRepository.create({ number, pin, displayName });
         const savedCard = await libraryCardRepository.save(libraryCard);
         return res.status(201).json(savedCard);
       }
 
       case 'PUT': {
         const { id } = req.query;
-        const { number, pin } = req.body;
+        const { number, pin, displayName } = req.body;
 
-        if (!id || !number || !pin) {
-          return res.status(400).json({ error: 'ID, number, and PIN are required' });
+        if (!id || !number || !pin || !displayName) {
+          return res.status(400).json({ error: 'ID, number, PIN, and display name are required' });
         }
 
         const libraryCard = await libraryCardRepository.findOneBy({ id: id as string });
@@ -45,6 +47,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         libraryCard.number = number;
         libraryCard.pin = pin;
+        libraryCard.displayName = displayName;
 
         const updatedCard = await libraryCardRepository.save(libraryCard);
         return res.json(updatedCard);

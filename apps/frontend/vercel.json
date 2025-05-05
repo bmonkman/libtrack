@@ -1,0 +1,5 @@
+{
+  "env": {
+    "API_BASE_URL": "https://libtrack-backend.vercel.app/api"
+  }
+} 

@@ -141,6 +141,8 @@ components:
         - id
         - number
         - pin
+        - displayName
+        - system
       properties:
         id:
           type: string
@@ -152,6 +154,14 @@ components:
         pin:
           type: string
           description: Library card PIN
+        displayName:
+          type: string
+          description: User-defined display name for the library card
+        system:
+          type: string
+          enum: [nwpl]
+          default: nwpl
+          description: The library system this card belongs to
 
     BookStateUpdate:
       type: object
@@ -284,15 +294,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - number
-                - pin
-              properties:
-                number:
-                  type: string
-                pin:
-                  type: string
+              $ref: '#/components/schemas/LibraryCard'
       responses:
         '201':
           description: Library card created successfully
@@ -318,19 +320,13 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - number
-                - pin
-              properties:
-                number:
-                  type: string
-                pin:
-                  type: string
+              $ref: '#/components/schemas/LibraryCard'
       responses:
         '200':
           description: Library card updated successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LibraryCard' 
+                $ref: '#/components/schemas/LibraryCard'
+        '404':
+          description: Library card not found 

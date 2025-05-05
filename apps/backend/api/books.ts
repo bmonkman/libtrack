@@ -2,12 +2,14 @@ import { VercelRequest, VercelResponse } from '@vercel/node';
 import { AppDataSource } from './ormconfig';
 import { Book, BookState } from './entities/Book';
 import { In } from 'typeorm';
+import { handleCors } from './utils';
 
 const bookRepository = AppDataSource.getRepository(Book);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (handleCors(req, res)) return;
+
   try {
-    // Initialize database connection
     if (!AppDataSource.isInitialized) {
       await AppDataSource.initialize();
     }
