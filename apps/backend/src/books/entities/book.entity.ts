@@ -1,4 +1,11 @@
-import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
+import { LibraryCard } from '../../library-cards/entities/library-card.entity';
 
 export enum BookState {
   CHECKED_OUT = 'checked_out',
@@ -27,4 +34,8 @@ export class Book {
     default: BookState.FOUND,
   })
   state: BookState;
+
+  @ManyToOne(() => LibraryCard, { nullable: true })
+  @JoinColumn({ name: 'library_card_id' })
+  libraryCard: LibraryCard;
 }

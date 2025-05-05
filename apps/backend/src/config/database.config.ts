@@ -1,15 +1,26 @@
-import { TypeOrmModuleOptions } from '@nestjs/typeorm';
+import { DataSource, DataSourceOptions } from 'typeorm';
+import { Book } from '../books/entities/book.entity';
+import { LibraryCard } from '../library-cards/entities/library-card.entity';
+import { config } from 'dotenv';
 
-export const databaseConfig = (): TypeOrmModuleOptions => ({
+// Load environment variables from .env file
+config();
+
+const isMigrationCommand = process.argv.some((arg) =>
+  arg.includes('migration'),
+);
+
+export const databaseConfig = (): DataSourceOptions => ({
   type: 'postgres',
-  host: process.env.DB_HOST,
-  port: parseInt(process.env.DB_PORT || '5432', 10),
-  username: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
+  url: process.env.DATABASE_URL,
   ssl: {
     rejectUnauthorized: false,
   },
-  entities: [__dirname + '/../**/*.entity{.ts,.js}'],
+  entities: [Book, LibraryCard],
+  migrations: isMigrationCommand ? ['src/migrations/*.ts'] : [],
+  migrationsTableName: 'migrations',
   synchronize: process.env.NODE_ENV !== 'production',
 });
+
+// This is used by TypeORM CLI for migrations
+export const AppDataSource = new DataSource(databaseConfig());

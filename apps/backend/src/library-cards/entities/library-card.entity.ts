@@ -1,4 +1,5 @@
-import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, OneToMany } from 'typeorm';
+import { Book } from '../../books/entities/book.entity';
 
 @Entity()
 export class LibraryCard {
@@ -10,4 +11,10 @@ export class LibraryCard {
 
   @Column()
   pin: string;
+
+  @Column()
+  displayName: string;
+
+  @OneToMany(() => Book, (book) => book.libraryCard)
+  books: Book[];
 }
