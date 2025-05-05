@@ -30,6 +30,10 @@ components:
           description: URL to the book's cover image
         state:
           $ref: '#/components/schemas/BookState'
+        libraryCardId:
+          type: string
+          format: uuid
+          description: ID of the library card the book is checked out to, if any
 
     BookState:
       type: string
