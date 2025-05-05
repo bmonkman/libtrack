@@ -4,6 +4,10 @@ info:
   version: 1.0.0
   description: API for managing library books
 
+servers:
+  - url: /api
+    description: API base URL
+
 components:
   schemas:
     Book:
