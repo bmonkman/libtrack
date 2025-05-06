@@ -1,19 +1,38 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { libraryCardsApi } from '$lib/api';
-	import type { LibraryCard, LibrarySystem } from '$lib/types';
+	import type { LibraryCard } from '$lib/types';
+	import { LibrarySystem } from '$lib/types';
+	import JsBarcode from 'jsbarcode';
 
 	let cards: LibraryCard[] = [];
 	let loading = true;
 	let error: string | null = null;
 	let showCreateForm = false;
+	let editingCard: LibraryCard | null = null;
 	let newCard = { number: '', pin: '', displayName: '', system: LibrarySystem.NWPL };
+
+	function generateBarcode(cardNumber: string, elementId: string) {
+		const canvas = document.getElementById(elementId) as HTMLCanvasElement;
+		if (canvas) {
+			JsBarcode(canvas, cardNumber, {
+				format: "CODE128",
+				width: 2,
+				height: 100,
+				displayValue: false
+			});
+		}
+	}
 
 	async function loadCards() {
 		try {
 			loading = true;
 			error = null;
 			cards = await libraryCardsApi.getLibraryCards();
+			// Generate barcodes after cards are loaded
+			cards.forEach(card => {
+				setTimeout(() => generateBarcode(card.number, `barcode-${card.id}`), 0);
+			});
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load library cards';
 		} finally {
@@ -35,6 +54,7 @@
 	async function updateCard(card: LibraryCard, updates: { number: string; pin: string; displayName: string; system: LibrarySystem }) {
 		try {
 			await libraryCardsApi.updateLibraryCard(card.id, updates);
+			editingCard = null;
 			await loadCards();
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to update library card';
@@ -155,15 +175,51 @@
 								<p class="truncate text-sm font-medium text-indigo-600">{card.displayName}</p>
 								<p class="text-sm text-gray-500">System: {card.system}</p>
 								<p class="text-sm text-gray-500">Card #{card.number}</p>
-								<p class="text-sm text-gray-500">PIN: {card.pin}</p>
 							</div>
-							<div class="ml-4 flex-shrink-0">
-								<button
-									on:click={() => updateCard(card, { number: card.number, pin: card.pin, displayName: card.displayName, system: card.system })}
-									class="inline-flex items-center rounded-md border border-transparent bg-indigo-100 px-3 py-1 text-sm leading-4 font-medium text-indigo-700 hover:bg-indigo-200 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:outline-none"
-								>
-									Update
-								</button>
+							<div class="flex items-center space-x-4">
+								<canvas id="barcode-{card.id}" class="h-16 w-auto"></canvas>
+								{#if editingCard?.id === card.id}
+									<form on:submit|preventDefault={() => updateCard(card, editingCard)} class="flex items-center space-x-2">
+										<input
+											type="text"
+											bind:value={editingCard.displayName}
+											placeholder="Display Name"
+											class="rounded-md border border-gray-300 px-2 py-1 text-sm"
+										/>
+										<input
+											type="text"
+											bind:value={editingCard.number}
+											placeholder="Card Number"
+											class="rounded-md border border-gray-300 px-2 py-1 text-sm"
+										/>
+										<input
+											type="text"
+											bind:value={editingCard.pin}
+											placeholder="PIN"
+											class="rounded-md border border-gray-300 px-2 py-1 text-sm"
+										/>
+										<button
+											type="submit"
+											class="inline-flex items-center rounded-md border border-transparent bg-indigo-600 px-3 py-1 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:outline-none"
+										>
+											Save
+										</button>
+										<button
+											type="button"
+											on:click={() => (editingCard = null)}
+											class="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:outline-none"
+										>
+											Cancel
+										</button>
+									</form>
+								{:else}
+									<button
+										on:click={() => (editingCard = { ...card })}
+										class="inline-flex items-center rounded-md border border-transparent bg-indigo-100 px-3 py-1 text-sm leading-4 font-medium text-indigo-700 hover:bg-indigo-200 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:outline-none"
+									>
+										Edit
+									</button>
+								{/if}
 							</div>
 						</div>
 					</li>

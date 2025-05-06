@@ -32,14 +32,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       case 'PUT': {
-        const { id } = req.query;
-        const { number, pin, displayName } = req.body;
+        const id = req.url?.split('/').pop();
+        const { number, pin, displayName, system } = req.body;
 
-        if (!id || !number || !pin || !displayName) {
-          return res.status(400).json({ error: 'ID, number, PIN, and display name are required' });
+        if (!id || !number || !pin || !displayName || !system) {
+          return res
+            .status(400)
+            .json({ error: 'ID, number, PIN, display name, and system are required' });
         }
 
-        const libraryCard = await libraryCardRepository.findOneBy({ id: id as string });
+        const libraryCard = await libraryCardRepository.findOneBy({ id });
 
         if (!libraryCard) {
           return res.status(404).json({ error: 'Library card not found' });
@@ -48,6 +50,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         libraryCard.number = number;
         libraryCard.pin = pin;
         libraryCard.displayName = displayName;
+        libraryCard.system = system;
 
         const updatedCard = await libraryCardRepository.save(libraryCard);
         return res.json(updatedCard);

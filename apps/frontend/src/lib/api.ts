@@ -7,9 +7,10 @@ import type {
 	PasskeyRegistrationRequest,
 	User
 } from './types';
+import { LibrarySystem } from './types';
 
 // Use the Vercel deployment URL in production, or local API in development
-const API_BASE_URL = import.meta.env.DEV 
+const API_BASE_URL = import.meta.env.DEV
 	? 'http://localhost:3000/api'
 	: import.meta.env.API_BASE_URL || 'https://libtrack-api.vercel.app/api';
 
@@ -18,8 +19,10 @@ async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise
 		...options,
 		headers: {
 			'Content-Type': 'application/json',
+			'X-Requested-With': 'XMLHttpRequest',
 			...options.headers
-		}
+		},
+		credentials: 'include'
 	});
 
 	if (!response.ok) {
@@ -54,9 +57,15 @@ export const booksApi = {
 export const libraryCardsApi = {
 	getLibraryCards: () => fetchApi<LibraryCard[]>('/library-cards'),
 
-	createLibraryCard: (data: { number: string; pin: string }) =>
-		fetchApi<LibraryCard>('/library-cards', { method: 'POST', body: JSON.stringify(data) }),
+	createLibraryCard: (data: {
+		number: string;
+		pin: string;
+		displayName: string;
+		system: LibrarySystem;
+	}) => fetchApi<LibraryCard>('/library-cards', { method: 'POST', body: JSON.stringify(data) }),
 
-	updateLibraryCard: (id: string, data: { number: string; pin: string }) =>
-		fetchApi<LibraryCard>(`/library-cards/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+	updateLibraryCard: (
+		id: string,
+		data: { number: string; pin: string; displayName: string; system: LibrarySystem }
+	) => fetchApi<LibraryCard>(`/library-cards/${id}`, { method: 'PUT', body: JSON.stringify(data) })
 };
