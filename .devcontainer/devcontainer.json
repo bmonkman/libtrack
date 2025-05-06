@@ -17,13 +17,13 @@
         "editor.formatOnSave": true,
         "editor.defaultFormatter": "esbenp.prettier-vscode",
         "editor.codeActionsOnSave": {
-          "source.fixAll.eslint": true
+          "source.fixAll": "explicit"
         },
         "typescript.tsdk": "/workspace/node_modules/typescript/lib"
       }
     }
   },
   "forwardPorts": [3000, 5173],
-  "postCreateCommand": "npm install",
+  "postCreateCommand": "cd apps/backend && npm install && cd ../frontend && npm install",
   "remoteUser": "node"
-} 
+}

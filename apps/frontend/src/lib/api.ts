@@ -11,7 +11,7 @@ import type {
 // Use the Vercel deployment URL in production, or local API in development
 const API_BASE_URL = import.meta.env.DEV 
 	? 'http://localhost:3000/api'
-	: import.meta.env.VITE_API_BASE_URL || 'https://libtrack-backend.vercel.app/api';
+	: import.meta.env.API_BASE_URL || 'https://libtrack-api.vercel.app/api';
 
 async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
 	const response = await fetch(`${API_BASE_URL}${endpoint}`, {

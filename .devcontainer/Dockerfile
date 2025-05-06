@@ -15,8 +15,7 @@ WORKDIR /workspace
 # Install global dependencies
 RUN npm install -g typescript@latest vercel@latest
 
-# Set up the user
-RUN groupadd -r node && useradd -r -g node node
+# Set the user to node
 USER node
 
 # Set up environment variables
