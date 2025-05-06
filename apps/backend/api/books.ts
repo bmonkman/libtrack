@@ -29,12 +29,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       case 'PUT': {
-        const updates = req.body as Array<{ id: string; isbn: string; state: BookState }>;
+        const updates = req.body as Array<{
+          id: string;
+          isbn: string;
+          state: BookState;
+          dueDate?: string;
+        }>;
         const updatedBooks = await Promise.all(
           updates.map(async (update) => {
             const book = await bookRepository.findOneBy({ id: update.id });
             if (book) {
               book.state = update.state;
+              book.dueDate = update.dueDate ? new Date(update.dueDate) : undefined;
               return bookRepository.save(book);
             }
             return null;

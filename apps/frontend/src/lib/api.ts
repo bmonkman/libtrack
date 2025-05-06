@@ -49,8 +49,9 @@ export const booksApi = {
 	getBooks: (states?: BookState[]) =>
 		fetchApi<Book[]>(`/books${states ? `?states=${states.join(',')}` : ''}`),
 
-	updateBookStates: (updates: Array<{ id: string; isbn: string; state: BookState }>) =>
-		fetchApi<Book[]>('/books/states', { method: 'PUT', body: JSON.stringify(updates) })
+	updateBookStates: (
+		updates: Array<{ id: string; isbn: string; state: BookState; dueDate?: string }>
+	) => fetchApi<Book[]>('/books/states', { method: 'PUT', body: JSON.stringify(updates) })
 };
 
 // Library Cards API

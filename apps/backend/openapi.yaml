@@ -34,6 +34,10 @@ components:
           description: URL to the book's cover image
         state:
           $ref: '#/components/schemas/BookState'
+        dueDate:
+          type: string
+          format: date-time
+          description: The date when the book is due to be returned
         libraryCardId:
           type: string
           format: uuid
@@ -178,6 +182,10 @@ components:
           type: string
         state:
           $ref: '#/components/schemas/BookState'
+        dueDate:
+          type: string
+          format: date-time
+          description: The date when the book is due to be returned
 
 paths:
   /auth/register:
@@ -329,4 +337,4 @@ paths:
               schema:
                 $ref: '#/components/schemas/LibraryCard'
         '404':
-          description: Library card not found 
+          description: Library card not found

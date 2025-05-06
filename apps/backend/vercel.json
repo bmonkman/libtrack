@@ -5,5 +5,14 @@
       "maxDuration": 10
     }
   },
-  "routes": [{ "src": "/api/library-cards/.*", "dest": "/api/library-cards.ts" }]
+  "routes": [
+    { "src": "/api/library-cards/.*", "dest": "/api/library-cards.ts" },
+    { "src": "/api/books/.*", "dest": "/api/books.ts" }
+  ],
+  "crons": [
+    {
+      "path": "/api/sync-books",
+      "schedule": "0 0 * * *"
+    }
+  ]
 }

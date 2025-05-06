@@ -6,10 +6,13 @@
     "build": "tsc",
     "typeorm": "typeorm-ts-node-commonjs -d api/ormconfig.ts",
     "format": "prettier --write \"**/*.ts\"",
-    "format:check": "prettier --check \"**/*.ts\""
+    "format:check": "prettier --check \"**/*.ts\"",
+    "vercel:dev": "vercel dev --listen 3000"
   },
   "dependencies": {
     "@vercel/node": "^3.0.0",
+    "axios": "^1.9.0",
+    "cheerio": "^1.0.0",
     "class-validator": "^0.14.0",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",

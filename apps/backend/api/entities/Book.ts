@@ -30,6 +30,9 @@ export class Book {
   state!: BookState;
 
   @Column({ nullable: true })
+  dueDate?: Date;
+
+  @Column({ nullable: true })
   libraryCardId?: string;
 
   @ManyToOne(() => LibraryCard, { nullable: true })

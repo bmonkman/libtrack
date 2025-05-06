@@ -1,4 +1,9 @@
-export type BookState = 'checked_out' | 'found' | 'returned' | 'overdue';
+export enum BookState {
+	CHECKED_OUT = 'checked_out',
+	FOUND = 'found',
+	RETURNED = 'returned',
+	OVERDUE = 'overdue'
+}
 
 export enum LibrarySystem {
 	NWPL = 'nwpl'
@@ -10,6 +15,7 @@ export interface Book {
 	title: string;
 	pictureUrl?: string;
 	state: BookState;
+	dueDate?: string;
 	libraryCardId?: string;
 }
 
