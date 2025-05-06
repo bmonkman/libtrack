@@ -1,8 +1,10 @@
 {
   "name": "LibTrack Development",
-  "dockerComposeFile": "docker-compose.yml",
-  "service": "app",
-  "workspaceFolder": "/workspace",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "workspaceFolder": "/workspaces/libtrack",
   "customizations": {
     "vscode": {
       "extensions": [

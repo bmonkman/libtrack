@@ -1,12 +1,6 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@sveltejs/adapter-auto"
-    }
-  ],
-  "env": {
-    "API_BASE_URL": "https://libtrack-api.vercel.app/api"
-  }
-} 
+	"version": 2,
+	"env": {
+		"API_BASE_URL": "https://libtrack-api.vercel.app/api"
+	}
+}
