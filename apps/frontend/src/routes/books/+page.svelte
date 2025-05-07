@@ -98,15 +98,18 @@
 	<div class="px-4 py-5 sm:px-6">
 		<div class="flex items-center justify-between">
 			<h2 class="text-lg leading-6 font-medium text-gray-900">Books</h2>
-			<select
-				bind:value={selectedState}
-				on:change={loadBooks}
-				class="mt-1 block w-40 rounded-md border-gray-300 py-2 pr-10 pl-3 text-base focus:border-indigo-500 focus:ring-indigo-500 focus:outline-none sm:text-sm"
-			>
-				{#each states as state}
-					<option value={state}>{state === 'all' ? 'all' : state}</option>
-				{/each}
-			</select>
+			<div class="flex flex-col items-center">
+				<div class="mb-1">Filter by:</div>
+				<select
+					bind:value={selectedState}
+					on:change={loadBooks}
+					class="mt-1 block w-40 rounded-md border-gray-300 py-2 pr-10 pl-3 text-base focus:border-indigo-500 focus:ring-indigo-500 focus:outline-none sm:text-sm"
+				>
+					{#each states as state}
+						<option value={state}>{state === 'all' ? 'all' : state}</option>
+					{/each}
+				</select>
+			</div>
 		</div>
 	</div>
 
@@ -117,7 +120,7 @@
 					<svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
 						<path
 							fill-rule="evenodd"
-							d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 101.414 1.414L10 11.414l1.293 1.293a1 1 001.414-1.414L11.414 10l1.293-1.293a1 1 00-1.414-1.414L10 8.586 8.707 7.293z"
+							d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 101.414 1.414L10 11.414l1.293 1.293a1 1 001.414-1.414L11.414 10l1.293-1.293a1 1 00-1.414-1.414L10 8.586 8.707 7.293z"
 							clip-rule="evenodd"
 						/>
 					</svg>
@@ -204,6 +207,18 @@
 		.flex.items-center {
 			align-items: stretch;
 		}
+		
+		/* Center the header filter dropdown */
+		.flex.items-center.justify-between {
+			align-items: center;
+		}
+		
+		.flex.items-center.justify-between > select {
+			width: 100%;
+			max-width: 200px;
+			margin-left: auto;
+			margin-right: auto;
+		}
 
 		.flex.items-center > * {
 			margin-bottom: 0.5rem;
@@ -232,10 +247,34 @@
 		
 		.flex-col {
 			width: 100%;
+			align-items: center;
+		}
+		
+		.ml-4.flex-shrink-0.flex.flex-col {
+			align-items: center;
+			margin-left: 0;
+			margin-top: 0.5rem;
+		}
+		
+		.ml-4.flex-shrink-0.flex.flex-col button,
+		.ml-4.flex-shrink-0.flex.flex-col select {
+			max-width: 200px;
 		}
 		
 		select, button {
 			min-height: 38px;
+		}
+	}
+
+	/* Add responsive styles for header links */
+	@media (max-width: 640px) {
+		.flex.items-center.justify-between {
+			flex-direction: column;
+			align-items: flex-start;
+		}
+
+		.flex.items-center.justify-between > h2 {
+			margin-bottom: 0.5rem;
 		}
 	}
 </style>
