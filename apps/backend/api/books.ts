@@ -24,6 +24,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const books = await bookRepository.find({
           where: states ? { state: In(states) } : undefined,
+          order: { title: 'ASC' },
         });
         return res.json(books);
       }

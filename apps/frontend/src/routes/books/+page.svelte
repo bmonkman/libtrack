@@ -1,19 +1,21 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { booksApi } from '$lib/api';
-	import type { Book } from '$lib/types';
+	import { booksApi, libraryCardsApi } from '$lib/api';
+	import type { Book, LibraryCard } from '$lib/types';
 	import { BookState } from '$lib/types';
 
 	let books: Book[] = [];
+	let libraryCards: LibraryCard[] = [];
+	let libraryCardMap: Map<string, string> = new Map();
 	let loading = true;
 	let error: string | null = null;
 	let selectedState: BookState | 'all' = BookState.CHECKED_OUT;
 
 	const states: (BookState | 'all')[] = ['all', BookState.CHECKED_OUT, BookState.FOUND, BookState.RETURNED, BookState.OVERDUE];
 
-	// Generate thumbnail URL using Open Library Covers API
-	function getBookCoverUrl(isbn: string): string {
-		return `https://covers.openlibrary.org/b/isbn/${isbn}-M.jpg`;
+	// Generate thumbnail URL using either the book's pictureUrl or Open Library Covers API as fallback
+	function getBookCoverUrl(book: Book): string {
+		return book.pictureUrl || `https://covers.openlibrary.org/b/isbn/${book.isbn}-M.jpg`;
 	}
 
 	// Format date to a user-friendly string
@@ -28,10 +30,28 @@
 		}).format(date);
 	}
 
+	// Get the display name of a library card by its ID
+	function getLibraryCardName(libraryCardId?: string): string {
+		if (!libraryCardId) return 'Unknown';
+		return libraryCardMap.get(libraryCardId) || 'Unknown';
+	}
+
 	// Check if a book is overdue
 	function isOverdue(dueDate?: string): boolean {
 		if (!dueDate) return false;
 		return new Date(dueDate) < new Date();
+	}
+
+	async function loadLibraryCards() {
+		try {
+			libraryCards = await libraryCardsApi.getLibraryCards();
+			// Create a map of library card IDs to their display names for quick lookup
+			libraryCardMap = new Map(
+				libraryCards.map(card => [card.id, card.displayName])
+			);
+		} catch (e) {
+			console.error('Failed to load library cards:', e);
+		}
 	}
 
 	async function loadBooks() {
@@ -68,7 +88,10 @@
 		}
 	}
 
-	onMount(loadBooks);
+	onMount(async () => {
+		await loadLibraryCards();
+		await loadBooks();
+	});
 </script>
 
 <div class="overflow-hidden bg-white shadow sm:rounded-lg">
@@ -78,7 +101,7 @@
 			<select
 				bind:value={selectedState}
 				on:change={loadBooks}
-				class="mt-1 block w-full rounded-md border-gray-300 py-2 pr-10 pl-3 text-base focus:border-indigo-500 focus:ring-indigo-500 focus:outline-none sm:text-sm"
+				class="mt-1 block w-40 rounded-md border-gray-300 py-2 pr-10 pl-3 text-base focus:border-indigo-500 focus:ring-indigo-500 focus:outline-none sm:text-sm"
 			>
 				{#each states as state}
 					<option value={state}>{state === 'all' ? 'all' : state}</option>
@@ -118,7 +141,7 @@
 						<div class="flex items-center">
 							<div class="flex-shrink-0 h-20 w-14 mr-4">
 								<img
-									src={getBookCoverUrl(book.isbn)}
+									src={getBookCoverUrl(book)}
 									alt="Book cover"
 									class="h-full w-full object-cover shadow-sm rounded"
 									on:error={handleImageError}
@@ -132,14 +155,19 @@
 										<span class={isOverdue(book.dueDate) ? 'text-red-500 font-medium' : ''}>
 											Due: {formatDueDate(book.dueDate)}
 										</span>
+										{#if book.libraryCardId}
+											<span class="ml-2 py-0.5 px-2 bg-blue-100 text-blue-800 rounded-full text-xs">
+												Card: {getLibraryCardName(book.libraryCardId)}
+											</span>
+										{/if}
 									</p>
 								{/if}
 							</div>
-							<div class="ml-4 flex-shrink-0 flex items-center space-x-2">
+							<div class="ml-4 flex-shrink-0 flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-2">
 								{#if book.state !== BookState.FOUND}
 									<button
 										on:click={() => markAsFound(book)}
-										class="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+										class="inline-flex items-center justify-center px-3 py-1 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 w-full sm:w-auto"
 									>
 										Found
 									</button>
@@ -150,7 +178,7 @@
 										const target = e.target as HTMLSelectElement;
 										updateBookState(book, target.value as BookState);
 									}}
-									class="mt-1 block w-full rounded-md border-gray-300 py-2 pr-10 pl-3 text-base focus:border-indigo-500 focus:ring-indigo-500 focus:outline-none sm:text-sm"
+									class="block w-full rounded-md border-gray-300 py-1 px-3 text-base focus:border-indigo-500 focus:ring-indigo-500 focus:outline-none sm:text-sm"
 								>
 									{#each states.filter((s) => s !== 'all') as state}
 										<option value={state}>{state}</option>
@@ -196,6 +224,18 @@
 		img {
 			max-width: 100%;
 			height: auto;
+		}
+
+		.flex.items-center > .flex-shrink-0 {
+			margin-bottom: 0.5rem;
+		}
+		
+		.flex-col {
+			width: 100%;
+		}
+		
+		select, button {
+			min-height: 38px;
 		}
 	}
 </style>
