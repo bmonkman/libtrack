@@ -16,7 +16,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     switch (req.method) {
       case 'GET': {
         const libraryCards = await libraryCardRepository.find();
-        return res.json(libraryCards);
+        const sanitizedCards = libraryCards.map(({ pin, ...card }) => card);
+        return res.json(sanitizedCards);
       }
 
       case 'POST': {

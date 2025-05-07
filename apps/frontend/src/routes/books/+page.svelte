@@ -164,3 +164,38 @@
 		</div>
 	{/if}
 </div>
+
+<style>
+	/* Add responsive styles */
+	@media (max-width: 640px) {
+		.flex {
+			flex-direction: column;
+			align-items: flex-start;
+		}
+
+		.flex.items-center {
+			align-items: stretch;
+		}
+
+		.flex.items-center > * {
+			margin-bottom: 0.5rem;
+		}
+
+		.flex.items-center > *:last-child {
+			margin-bottom: 0;
+		}
+
+		button {
+			width: 100%;
+		}
+
+		select {
+			width: 100%;
+		}
+
+		img {
+			max-width: 100%;
+			height: auto;
+		}
+	}
+</style>

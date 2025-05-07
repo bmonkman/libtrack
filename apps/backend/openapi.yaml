@@ -144,7 +144,6 @@ components:
       required:
         - id
         - number
-        - pin
         - displayName
         - system
       properties:
@@ -155,9 +154,6 @@ components:
         number:
           type: string
           description: Library card number
-        pin:
-          type: string
-          description: Library card PIN
         displayName:
           type: string
           description: User-defined display name for the library card

@@ -18,9 +18,26 @@
 			JsBarcode(canvas, cardNumber, {
 				format: "CODE128",
 				width: 2,
-				height: 100,
+				height: 120,
 				displayValue: false
 			});
+		}
+	}
+
+	function showBarcodePopup(cardNumber: string) {
+		const popup = window.open('', '_blank', 'width=400,height=200');
+		if (popup) {
+			popup.document.write('<html><head><title>Barcode</title></head><body style="display:flex;justify-content:center;align-items:center;height:100%;margin:0;"><canvas id="popup-barcode"></canvas></body></html>');
+			popup.document.close();
+			const canvas = popup.document.getElementById('popup-barcode') as HTMLCanvasElement;
+			if (canvas) {
+				JsBarcode(canvas, cardNumber, {
+					format: "CODE128",
+					width: 3,
+					height: 150,
+					displayValue: true
+				});
+			}
 		}
 	}
 
@@ -178,6 +195,12 @@
 							</div>
 							<div class="flex items-center space-x-4">
 								<canvas id="barcode-{card.id}" class="h-16 w-auto"></canvas>
+								<button
+									on:click={() => showBarcodePopup(card.number)}
+									class="inline-flex items-center rounded-md border border-transparent bg-indigo-100 px-3 py-1 text-sm leading-4 font-medium text-indigo-700 hover:bg-indigo-200 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:outline-none"
+								>
+									Show Barcode
+								</button>
 								{#if editingCard?.id === card.id}
 									<form on:submit|preventDefault={() => updateCard(card, editingCard)} class="flex items-center space-x-2">
 										<input
@@ -228,3 +251,34 @@
 		</div>
 	{/if}
 </div>
+
+<style>
+	/* Add responsive styles */
+	@media (max-width: 640px) {
+		.flex {
+			flex-direction: column;
+			align-items: flex-start;
+		}
+
+		.flex.items-center {
+			align-items: stretch;
+		}
+
+		.flex.items-center > * {
+			margin-bottom: 0.5rem;
+		}
+
+		.flex.items-center > *:last-child {
+			margin-bottom: 0;
+		}
+
+		button {
+			width: 100%;
+		}
+
+		canvas {
+			max-width: 100%;
+			height: auto;
+		}
+	}
+</style>

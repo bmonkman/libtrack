@@ -2,6 +2,7 @@
 	import { booksApi } from '$lib/api';
 	import type { Book } from '$lib/types';
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
 
 	let books: Book[] = [];
 	let loading = true;
@@ -19,9 +20,12 @@
 		}
 	}
 
-	onMount(loadBooks);
+	onMount(() => {
+		goto('/books');
+	});
 </script>
 
+<!-- Added responsive classes to improve mobile experience -->
 <div class="overflow-hidden bg-white shadow sm:rounded-lg">
 	<div class="px-4 py-5 sm:px-6">
 		<h2 class="text-lg leading-6 font-medium text-gray-900">Welcome to LibTrack</h2>
@@ -30,7 +34,7 @@
 
 	{#if error}
 		<div class="border-l-4 border-red-400 bg-red-50 p-4">
-			<div class="flex">
+			<div class="flex flex-col sm:flex-row">
 				<div class="flex-shrink-0">
 					<svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
 						<path
@@ -40,7 +44,7 @@
 						/>
 					</svg>
 				</div>
-				<div class="ml-3">
+				<div class="ml-3 mt-2 sm:mt-0">
 					<p class="text-sm text-red-700">{error}</p>
 				</div>
 			</div>
@@ -58,11 +62,11 @@
 				<ul class="mt-4 divide-y divide-gray-200">
 					{#each books as book}
 						<li class="py-4">
-							<div class="flex space-x-3">
+							<div class="flex flex-col sm:flex-row space-x-0 sm:space-x-3">
 								{#if book.pictureUrl}
-									<img class="h-10 w-10 rounded-full" src={book.pictureUrl} alt={book.title} />
+									<img class="h-10 w-10 rounded-full mx-auto sm:mx-0" src={book.pictureUrl} alt={book.title} />
 								{:else}
-									<div class="flex h-10 w-10 items-center justify-center rounded-full bg-gray-200">
+									<div class="flex h-10 w-10 items-center justify-center rounded-full bg-gray-200 mx-auto sm:mx-0">
 										<svg
 											class="h-6 w-6 text-gray-400"
 											fill="none"
@@ -78,12 +82,12 @@
 										</svg>
 									</div>
 								{/if}
-								<div class="flex-1 space-y-1">
-									<div class="flex items-center justify-between">
-										<h3 class="text-sm font-medium">{book.title}</h3>
-										<p class="text-sm text-gray-500">ISBN: {book.isbn}</p>
+								<div class="flex-1 space-y-1 mt-2 sm:mt-0">
+									<div class="flex flex-col sm:flex-row items-center sm:justify-between">
+										<h3 class="text-sm font-medium text-center sm:text-left">{book.title}</h3>
+										<p class="text-sm text-gray-500 text-center sm:text-right">ISBN: {book.isbn}</p>
 									</div>
-									<p class="text-sm text-gray-500">
+									<p class="text-sm text-gray-500 text-center sm:text-left">
 										Checked out to: {book.libraryCardId || 'Not assigned'}
 									</p>
 								</div>
