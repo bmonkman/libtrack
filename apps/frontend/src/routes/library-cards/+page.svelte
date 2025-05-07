@@ -16,7 +16,7 @@
 		const canvas = document.getElementById(elementId) as HTMLCanvasElement;
 		if (canvas) {
 			JsBarcode(canvas, cardNumber, {
-				format: "CODE128",
+				format: 'CODE128',
 				width: 2,
 				height: 120,
 				displayValue: false
@@ -27,12 +27,14 @@
 	function showBarcodePopup(cardNumber: string) {
 		const popup = window.open('', '_blank', 'width=400,height=200');
 		if (popup) {
-			popup.document.write('<html><head><title>Barcode</title></head><body style="display:flex;justify-content:center;align-items:center;height:100%;margin:0;"><canvas id="popup-barcode"></canvas></body></html>');
+			popup.document.write(
+				'<html><head><title>Barcode</title></head><body style="display:flex;justify-content:center;align-items:center;height:100%;margin:0;"><canvas id="popup-barcode"></canvas></body></html>'
+			);
 			popup.document.close();
 			const canvas = popup.document.getElementById('popup-barcode') as HTMLCanvasElement;
 			if (canvas) {
 				JsBarcode(canvas, cardNumber, {
-					format: "CODE128",
+					format: 'CODE128',
 					width: 3,
 					height: 150,
 					displayValue: true
@@ -47,7 +49,7 @@
 			error = null;
 			cards = await libraryCardsApi.getLibraryCards();
 			// Generate barcodes after cards are loaded
-			cards.forEach(card => {
+			cards.forEach((card) => {
 				setTimeout(() => generateBarcode(card.number, `barcode-${card.id}`), 0);
 			});
 		} catch (e) {
@@ -59,7 +61,7 @@
 
 	async function createCard() {
 		try {
-			await libraryCardsApi.createLibraryCard(newCard);
+			await libraryCardsApi.addLibraryCard(newCard);
 			newCard = { number: '', pin: '', displayName: '', system: LibrarySystem.NWPL };
 			showCreateForm = false;
 			await loadCards();
@@ -68,7 +70,10 @@
 		}
 	}
 
-	async function updateCard(card: LibraryCard, updates: { number: string; pin: string; displayName: string; system: LibrarySystem }) {
+	async function updateCard(
+		card: LibraryCard,
+		updates: { number: string; pin: string; displayName: string; system: LibrarySystem }
+	) {
 		try {
 			await libraryCardsApi.updateLibraryCard(card.id, updates);
 			editingCard = null;
@@ -84,10 +89,10 @@
 <div class="overflow-hidden bg-white shadow sm:rounded-lg">
 	<div class="px-4 py-5 sm:px-6">
 		<div class="flex items-center justify-between">
-			<h2 class="text-lg leading-6 font-medium text-gray-900">Library Cards</h2>
+			<h2 class="text-lg font-medium leading-6 text-gray-900">Library Cards</h2>
 			<button
 				on:click={() => (showCreateForm = true)}
-				class="inline-flex items-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:outline-none"
+				class="inline-flex items-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
 			>
 				Add Card
 			</button>
@@ -115,17 +120,19 @@
 
 	{#if showCreateForm}
 		<div class="border-t border-gray-200 px-4 py-5 sm:px-6">
-			<h3 class="mb-4 text-lg leading-6 font-medium text-gray-900">Create New Library Card</h3>
+			<h3 class="mb-4 text-lg font-medium leading-6 text-gray-900">Create New Library Card</h3>
 			<form on:submit|preventDefault={createCard} class="space-y-4">
 				<div>
-					<label for="displayName" class="block text-sm font-medium text-gray-700">Display Name</label>
+					<label for="displayName" class="block text-sm font-medium text-gray-700"
+						>Display Name</label
+					>
 					<input
 						type="text"
 						id="displayName"
 						bind:value={newCard.displayName}
 						required
 						placeholder="e.g. John's Card"
-						class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 focus:outline-none sm:text-sm"
+						class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
 					/>
 				</div>
 				<div>
@@ -134,7 +141,7 @@
 						id="system"
 						bind:value={newCard.system}
 						required
-						class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 focus:outline-none sm:text-sm"
+						class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
 					>
 						<option value={LibrarySystem.NWPL}>New West Public Library</option>
 					</select>
@@ -146,7 +153,7 @@
 						id="number"
 						bind:value={newCard.number}
 						required
-						class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 focus:outline-none sm:text-sm"
+						class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
 					/>
 				</div>
 				<div>
@@ -156,20 +163,20 @@
 						id="pin"
 						bind:value={newCard.pin}
 						required
-						class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 focus:outline-none sm:text-sm"
+						class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
 					/>
 				</div>
 				<div class="flex justify-end space-x-3">
 					<button
 						type="button"
 						on:click={() => (showCreateForm = false)}
-						class="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:outline-none"
+						class="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
 					>
 						Cancel
 					</button>
 					<button
 						type="submit"
-						class="inline-flex items-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:outline-none"
+						class="inline-flex items-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
 					>
 						Create
 					</button>
@@ -197,12 +204,15 @@
 								<canvas id="barcode-{card.id}" class="h-16 w-auto"></canvas>
 								<button
 									on:click={() => showBarcodePopup(card.number)}
-									class="inline-flex items-center rounded-md border border-transparent bg-indigo-100 px-3 py-1 text-sm leading-4 font-medium text-indigo-700 hover:bg-indigo-200 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:outline-none"
+									class="inline-flex items-center rounded-md border border-transparent bg-indigo-100 px-3 py-1 text-sm font-medium leading-4 text-indigo-700 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
 								>
 									Show Barcode
 								</button>
 								{#if editingCard?.id === card.id}
-									<form on:submit|preventDefault={() => updateCard(card, editingCard)} class="flex items-center space-x-2">
+									<form
+										on:submit|preventDefault={() => updateCard(card, editingCard)}
+										class="flex items-center space-x-2"
+									>
 										<input
 											type="text"
 											bind:value={editingCard.displayName}
@@ -223,14 +233,14 @@
 										/>
 										<button
 											type="submit"
-											class="inline-flex items-center rounded-md border border-transparent bg-indigo-600 px-3 py-1 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:outline-none"
+											class="inline-flex items-center rounded-md border border-transparent bg-indigo-600 px-3 py-1 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
 										>
 											Save
 										</button>
 										<button
 											type="button"
 											on:click={() => (editingCard = null)}
-											class="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:outline-none"
+											class="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
 										>
 											Cancel
 										</button>
@@ -238,7 +248,7 @@
 								{:else}
 									<button
 										on:click={() => (editingCard = { ...card })}
-										class="inline-flex items-center rounded-md border border-transparent bg-indigo-100 px-3 py-1 text-sm leading-4 font-medium text-indigo-700 hover:bg-indigo-200 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:outline-none"
+										class="inline-flex items-center rounded-md border border-transparent bg-indigo-100 px-3 py-1 text-sm font-medium leading-4 text-indigo-700 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
 									>
 										Edit
 									</button>

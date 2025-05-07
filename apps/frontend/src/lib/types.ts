@@ -1,8 +1,10 @@
 export enum BookState {
 	CHECKED_OUT = 'checked_out',
+	AVAILABLE = 'available',
+	OVERDUE = 'overdue',
+	ON_HOLD = 'on_hold',
 	FOUND = 'found',
-	RETURNED = 'returned',
-	OVERDUE = 'overdue'
+	RETURNED = 'returned'
 }
 
 export enum LibrarySystem {
@@ -35,16 +37,77 @@ export interface PasskeyCredential {
 	transports: ('usb' | 'nfc' | 'ble' | 'internal')[];
 }
 
+export interface PublicKeyCredentialCreationOptions {
+	challenge: ArrayBuffer;
+	rp: {
+		name: string;
+		id?: string;
+	};
+	user: {
+		id: ArrayBuffer;
+		name: string;
+		displayName: string;
+	};
+	pubKeyCredParams: {
+		type: 'public-key';
+		alg: number;
+	}[];
+	timeout?: number;
+	excludeCredentials?: {
+		id: ArrayBuffer;
+		type: 'public-key';
+		transports?: string[];
+	}[];
+	authenticatorSelection?: {
+		authenticatorAttachment?: 'platform' | 'cross-platform';
+		requireResidentKey?: boolean;
+		residentKey?: 'required' | 'preferred' | 'discouraged';
+		userVerification?: 'required' | 'preferred' | 'discouraged';
+	};
+	attestation?: 'none' | 'direct' | 'indirect' | 'enterprise';
+}
+
+export interface PublicKeyCredentialRequestOptions {
+	challenge: ArrayBuffer;
+	timeout?: number;
+	rpId?: string;
+	allowCredentials?: {
+		id: ArrayBuffer;
+		type: 'public-key';
+		transports?: string[];
+	}[];
+	userVerification?: 'required' | 'preferred' | 'discouraged';
+}
+
+export interface RegistrationCredentialJSON {
+	id: string;
+	rawId: string;
+	response: {
+		attestationObject: string;
+		clientDataJSON: string;
+	};
+	type: string;
+}
+
+export interface AuthenticationCredentialJSON {
+	id: string;
+	rawId: string;
+	response: {
+		authenticatorData: string;
+		clientDataJSON: string;
+		signature: string;
+		userHandle: string | null;
+	};
+	type: string;
+}
+
 export interface PasskeyRegistrationRequest {
 	name: string;
-	credential: PasskeyCredential;
+	credential: RegistrationCredentialJSON;
 }
 
 export interface PasskeyLoginRequest {
-	credentialId: string;
-	authenticatorData: string;
-	clientDataJSON: string;
-	signature: string;
+	credential: AuthenticationCredentialJSON;
 }
 
 export interface User {

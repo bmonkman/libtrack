@@ -1,5 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { LibraryCard } from './LibraryCard';
+import { User } from './User';
 
 export enum BookState {
   CHECKED_OUT = 'checked_out',
@@ -38,6 +39,13 @@ export class Book {
   @ManyToOne(() => LibraryCard, { nullable: true })
   @JoinColumn({ name: 'libraryCardId' })
   libraryCard?: LibraryCard;
+
+  @Column({ nullable: true })
+  userId?: string;
+
+  @ManyToOne(() => User, (user) => user.books, { nullable: true })
+  @JoinColumn({ name: 'userId' })
+  user?: User;
 
   constructor(isbn: string, title: string, pictureUrl?: string) {
     this.isbn = isbn;

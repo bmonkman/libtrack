@@ -3,7 +3,7 @@ import { AppDataSource } from './ormconfig';
 import { Book, BookState } from './entities/Book';
 import { LibraryCard } from './entities/LibraryCard';
 import { getCheckedOutBooks } from './utils/library-sync';
-import { handleCors } from './utils';
+import { handleCors } from './utils/utils';
 
 // This endpoint is designed to be called by a Vercel Cron Job
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -71,12 +71,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               bookData.isbn ||
               `placeholder-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
             book = new Book(isbn, bookData.title, bookData.coverImage);
+            book.title = bookData.title;
+            book.state = BookState.CHECKED_OUT;
+            book.libraryCardId = card.id;
+            book.userId = card.userId;
           }
 
-          // Update book details
-          book.title = bookData.title;
-          book.state = BookState.CHECKED_OUT;
-          book.libraryCardId = card.id;
           book.dueDate = bookData.dueDate;
 
           // If the book is already overdue, mark it accordingly

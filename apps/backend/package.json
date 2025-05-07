@@ -7,7 +7,10 @@
     "typeorm": "typeorm-ts-node-commonjs -d api/ormconfig.ts",
     "format": "prettier --write \"**/*.ts\"",
     "format:check": "prettier --check \"**/*.ts\"",
-    "vercel:dev": "vercel dev --listen 3000"
+    "vercel:dev": "vercel dev --listen 3000",
+    "migration:generate": "typeorm-ts-node-commonjs migration:generate -d api/ormconfig.ts src/migration/<name>",
+    "migration:run": "typeorm-ts-node-commonjs migration:run -d api/ormconfig.ts",
+    "migration:revert": "typeorm-ts-node-commonjs migration:revert -d api/ormconfig.ts"
   },
   "dependencies": {
     "@vercel/node": "^3.0.0",
