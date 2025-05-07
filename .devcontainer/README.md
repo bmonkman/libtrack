@@ -26,12 +26,13 @@ Once the container is running:
 3. Use Vercel Dev for local development:
    ```bash
    # In the backend directory
-   vercel dev
+   npm run vercel:dev
    ```
 
 ## VS Code Extensions
 
 The container includes the following VS Code extensions:
+
 - Svelte for VS Code
 - ESLint
 - Prettier
@@ -47,4 +48,4 @@ If you encounter any issues:
    - Command Palette (F1) -> "Remote-Containers: Rebuild Container"
 2. Check Docker Desktop is running
 3. Ensure ports 3000 and 5173 are not in use
-4. Check the VS Code output panel for any error messages 
+4. Check the VS Code output panel for any error messages

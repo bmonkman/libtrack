@@ -44,7 +44,7 @@ The project uses a development container for a consistent development environmen
 ```bash
 cd apps/frontend
 npm install
-npm run dev
+npm run vercel:dev
 ```
 
 ### Backend Development
@@ -52,7 +52,7 @@ npm run dev
 ```bash
 cd apps/backend
 npm install
-vercel dev
+npm run vercel:dev
 ```
 
 ## Project Creation
