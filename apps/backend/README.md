@@ -12,11 +12,13 @@ A TypeScript-based backend API for managing library books, built with TypeORM, V
 ## Setup
 
 1. Install dependencies:
+
 ```bash
 npm install
 ```
 
 2. Create a `.env` file in the root directory with the following variables:
+
 ```
 DATABASE_URL=your_neon_db_connection_string
 JWT_SECRET=your_jwt_secret
@@ -24,6 +26,7 @@ NODE_ENV=development
 ```
 
 3. Initialize the database:
+
 ```bash
 npm run typeorm migration:run
 ```
@@ -31,6 +34,7 @@ npm run typeorm migration:run
 ## Development
 
 To run the development server:
+
 ```bash
 npm run dev
 ```
@@ -44,6 +48,8 @@ npm run dev
    - JWT_SECRET
    - NODE_ENV
 
+After configured, just push code to main or run `vercel --prod`
+
 ## API Documentation
 
 The API follows the OpenAPI specification defined in `openapi.yaml`. You can view the full API documentation there.
@@ -56,4 +62,4 @@ The API follows the OpenAPI specification defined in `openapi.yaml`. You can vie
 - `POST /api/auth/login` - Login with passkey
 - `GET /api/library-cards` - Get list of library cards
 - `POST /api/library-cards` - Create a new library card
-- `PUT /api/library-cards/{id}` - Update a library card 
+- `PUT /api/library-cards/{id}` - Update a library card

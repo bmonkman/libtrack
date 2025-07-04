@@ -110,7 +110,7 @@
 
 	async function updateBookState(book: Book, newState: BookState) {
 		try {
-			await booksApi.updateBookStates([{ id: book.id, isbn: book.isbn, state: newState }]);
+			await booksApi.updateStates([{ id: book.id, isbn: book.isbn, state: newState }]);
 			await loadBooks();
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to update book state';
@@ -270,13 +270,6 @@
 		/* Center the header filter dropdown */
 		.flex.items-center.justify-between {
 			align-items: center;
-		}
-
-		.flex.items-center.justify-between > select {
-			width: 100%;
-			max-width: 200px;
-			margin-left: auto;
-			margin-right: auto;
 		}
 
 		.flex.items-center > * {

@@ -54,7 +54,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       case 'PUT': {
-        const updates = req.body as Array<{
+        const { updates } = req.body;
+
+        // Validate that updates is an array
+        if (!Array.isArray(updates)) {
+          return res.status(400).json({ error: 'Updates must be an array' });
+        }
+
+        const typedUpdates = updates as Array<{
           id: string;
           isbn: string;
           state: BookState;
@@ -63,7 +70,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }>;
 
         const updatedBooks = await Promise.all(
-          updates.map(async (update) => {
+          typedUpdates.map(async (update) => {
             // Ensure the book belongs to the authenticated user
             const book = await bookRepository.findOne({
               where: { id: update.id, userId: authUser.id },

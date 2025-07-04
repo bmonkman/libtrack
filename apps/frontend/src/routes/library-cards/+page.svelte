@@ -75,7 +75,7 @@
 		updates: { number: string; pin: string; displayName: string; system: LibrarySystem }
 	) {
 		try {
-			await libraryCardsApi.updateLibraryCard(card.id, updates);
+			await libraryCardsApi.updateLibraryCard({ id: card.id, ...updates });
 			editingCard = null;
 			await loadCards();
 		} catch (e) {
@@ -210,7 +210,12 @@
 								</button>
 								{#if editingCard?.id === card.id}
 									<form
-										on:submit|preventDefault={() => updateCard(card, editingCard)}
+										on:submit|preventDefault={() => editingCard && updateCard(card, {
+											number: editingCard.number,
+											pin: editingCard.pin,
+											displayName: editingCard.displayName,
+											system: editingCard.system
+										})}
 										class="flex items-center space-x-2"
 									>
 										<input

@@ -12,8 +12,9 @@
 	};
 
 	// Get the shared user store from context
-	const currentUser = getContext('currentUser');
-	const isLoading = getContext('isLoading');
+	import type { Writable } from 'svelte/store';
+	const currentUser = getContext('currentUser') as Writable<User | null>;
+	const isLoading = getContext('isLoading') as Writable<boolean>;
 
 	let authState = AUTH_STATE.INITIAL;
 	let userName = '';
