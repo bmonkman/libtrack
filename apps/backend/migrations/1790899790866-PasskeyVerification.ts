@@ -41,6 +41,9 @@ export class PasskeyVerification1790899790866 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
+    // The old columns can't be backfilled from new credentials, and they come back as NOT NULL,
+    // so rolling back removes passkeys just as going forward did
+    await queryRunner.query(`DELETE FROM "passkey_credential"`);
     await queryRunner.query(
       `ALTER TABLE "passkey_credential" DROP CONSTRAINT "FK_5f47d56fa2bae22e145c61e5b49"`
     );

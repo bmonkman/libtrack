@@ -168,15 +168,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(400).json({ error: 'Passkey ID is required' });
         }
 
-        const credentials = await credentialRepository.findBy({ userId: authUser.id });
-        if (!credentials.some((cred) => cred.id === resourceId)) {
+        // Lock the user's row so two removals at once can't both pass the last-passkey check
+        const outcome = await AppDataSource.transaction(async (manager) => {
+          await manager
+            .getRepository(User)
+            .createQueryBuilder('user')
+            .setLock('pessimistic_write')
+            .where('user.id = :id', { id: authUser.id })
+            .getOne();
+
+          const credentials = await manager
+            .getRepository(PasskeyCredential)
+            .findBy({ userId: authUser.id });
+          if (!credentials.some((cred) => cred.id === resourceId)) return 'not_found';
+          if (credentials.length === 1) return 'only_passkey';
+
+          await manager
+            .getRepository(PasskeyCredential)
+            .delete({ id: resourceId, userId: authUser.id });
+          return 'deleted';
+        });
+
+        if (outcome === 'not_found') {
           return res.status(404).json({ error: 'Passkey not found' });
         }
-        if (credentials.length === 1) {
+        if (outcome === 'only_passkey') {
           return res.status(400).json({ error: "Can't remove your only passkey" });
         }
-
-        await credentialRepository.delete({ id: resourceId, userId: authUser.id });
         return res.status(204).end();
       }
 
