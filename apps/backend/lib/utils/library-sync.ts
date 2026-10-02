@@ -2,10 +2,24 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 
 export interface BookData {
+  checkoutId: string;
   title: string;
+  author?: string;
   isbn?: string;
-  dueDate: Date;
+  dueDate: string; // 'YYYY-MM-DD'
   coverImage?: string;
+}
+
+// BiblioCommons lists authors as 'Last, First' (sometimes with dates: 'Carle, Eric, 1929-2021').
+// Shows the first author as 'First Last'; anything that isn't that shape is left as is.
+export function formatAuthor(authors?: string[]): string | undefined {
+  if (!authors?.length) return undefined;
+  const parts = authors[0]
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part) => part && !/^\d{4}/.test(part));
+  const name = parts.length === 2 ? `${parts[1]} ${parts[0]}` : parts.join(', ');
+  return authors.length > 1 ? `${name} and others` : name;
 }
 
 /**
@@ -146,40 +160,36 @@ export async function getNWPLBooks(cardNumber: string, pin: string): Promise<Boo
       Priority: 'u=0',
     };
 
-    // Step 4: Fetch checked out books
-    const checkedOutResponse = await axios.get(
-      `https://gateway.bibliocommons.com/v2/libraries/newwestminster/checkouts?accountId=${accountId}&size=100&status=OUT&page=1&sort=status&materialType=&locale=en-CA`,
-      {
-        withCredentials: true,
-        headers,
-      }
-    );
-
-    if (
-      !checkedOutResponse.data ||
-      !checkedOutResponse.data.entities ||
-      !checkedOutResponse.data.entities.bibs
-    ) {
-      return [];
-    }
-
+    // Step 4: Fetch checked out books, page by page. The caller marks anything missing from this
+    // list as returned, so an unexpected response must throw rather than look like an empty list.
     const books: BookData[] = [];
-    const bibs = checkedOutResponse.data.entities.bibs;
-    const checkouts = checkedOutResponse.data.entities.checkouts;
+    for (let page = 1, pages = 1; page <= pages; page++) {
+      const { data } = await axios.get(
+        `https://gateway.bibliocommons.com/v2/libraries/newwestminster/checkouts?accountId=${accountId}&size=100&status=OUT&page=${page}&sort=status&materialType=&locale=en-CA`,
+        {
+          withCredentials: true,
+          headers,
+        }
+      );
 
-    // Process book data
-    for (const checkoutId of Object.keys(checkouts)) {
-      const checkout = checkouts[checkoutId];
-      const metadataId = checkout.metadataId;
-      const bib = bibs[metadataId];
+      if (!data?.entities || !data.borrowing?.checkouts?.pagination) {
+        throw new Error('Unexpected checkouts response shape');
+      }
+      pages = data.borrowing.checkouts.pagination.pages;
 
-      if (bib && bib.briefInfo) {
-        const info = bib.briefInfo;
+      const bibs = data.entities.bibs ?? {};
+      const checkouts = data.entities.checkouts ?? {};
+      for (const checkout of Object.values<any>(checkouts)) {
+        const info = bibs[checkout.metadataId]?.briefInfo;
         books.push({
-          title: info.title + (info.subtitle ? ': ' + info.subtitle : ''),
-          isbn: info.isbns?.length > 0 ? info.isbns[0] : undefined,
-          dueDate: new Date(checkout.dueDate),
-          coverImage: info.jacket?.medium || info.jacket?.large || info.jacket?.small,
+          checkoutId: String(checkout.checkoutId),
+          title: info
+            ? info.title + (info.subtitle ? ': ' + info.subtitle : '')
+            : checkout.bibTitle,
+          author: formatAuthor(info?.authors),
+          isbn: info?.isbns?.length > 0 ? info.isbns[0] : undefined,
+          dueDate: checkout.dueDate,
+          coverImage: info?.jacket?.medium || info?.jacket?.large || info?.jacket?.small,
         });
       }
     }

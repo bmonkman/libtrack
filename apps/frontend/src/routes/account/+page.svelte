@@ -23,9 +23,9 @@
 		}).format(new Date(dateString));
 	}
 
+	// Only the first load shows "Loading..."; refreshes after add/remove keep the list on screen
 	async function loadPasskeys() {
 		try {
-			loading = true;
 			error = null;
 			passkeys = await authApi.listPasskeys();
 		} catch (e) {

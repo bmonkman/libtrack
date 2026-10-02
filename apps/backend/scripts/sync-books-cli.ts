@@ -20,7 +20,7 @@ async function main() {
     books.forEach((book, index) => {
       console.log(`${index + 1}. ${book.title}`);
       console.log(`   ISBN: ${book.isbn || 'N/A'}`);
-      console.log(`   Due Date: ${book.dueDate.toLocaleDateString()}`);
+      console.log(`   Due Date: ${book.dueDate}`);
       console.log(`   Cover Image: ${book.coverImage || 'N/A'}`);
       console.log('');
     });

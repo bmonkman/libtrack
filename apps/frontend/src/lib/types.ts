@@ -1,8 +1,6 @@
+// Mirrors the backend: where the book is. Overdue is worked out from dueDate, not stored.
 export enum BookState {
 	CHECKED_OUT = 'checked_out',
-	AVAILABLE = 'available',
-	OVERDUE = 'overdue',
-	ON_HOLD = 'on_hold',
 	FOUND = 'found',
 	RETURNED = 'returned'
 }
@@ -15,9 +13,10 @@ export interface Book {
 	id: string;
 	isbn: string;
 	title: string;
+	author?: string;
 	pictureUrl?: string;
 	state: BookState;
-	dueDate?: string;
+	dueDate?: string; // 'YYYY-MM-DD'
 	libraryCardId?: string;
 }
 

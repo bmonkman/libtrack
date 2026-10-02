@@ -1,15 +1,17 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { LibraryCard } from './LibraryCard';
 import { User } from './User';
 
+// Where the book is. Whether it's overdue is a separate question, answered by comparing dueDate
+// with today, so marking a book found never hides that it's late.
 export enum BookState {
-  CHECKED_OUT = 'checked_out',
-  FOUND = 'found',
-  RETURNED = 'returned',
-  OVERDUE = 'overdue',
+  CHECKED_OUT = 'checked_out', // borrowed, not located in the house yet
+  FOUND = 'found', // borrowed and located
+  RETURNED = 'returned', // no longer on the library card
 }
 
 @Entity()
+@Index(['libraryCardId', 'checkoutId'], { unique: true, where: '"checkoutId" IS NOT NULL' })
 export class Book {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
@@ -19,6 +21,10 @@ export class Book {
 
   @Column()
   title!: string;
+
+  // Display form, e.g. 'Raina Telgemeier' (the library sends 'Telgemeier, Raina')
+  @Column({ nullable: true })
+  author?: string;
 
   @Column({ nullable: true })
   pictureUrl?: string;
@@ -30,8 +36,15 @@ export class Book {
   })
   state!: BookState;
 
+  // Library due dates are calendar dates with no time ('YYYY-MM-DD'). A timestamp would be read
+  // as UTC midnight, which is the previous afternoon in Vancouver.
+  @Column({ type: 'date', nullable: true })
+  dueDate?: string;
+
+  // BiblioCommons' ID for this loan. The sync matches on it, so the same title borrowed on two
+  // cards, or by two households, stays as separate rows.
   @Column({ nullable: true })
-  dueDate?: Date;
+  checkoutId?: string;
 
   @Column({ nullable: true })
   libraryCardId?: string;

@@ -1,8 +1,10 @@
 openapi: 3.1.0
 info:
   title: LibTrack API
-  version: 1.0.0
-  description: API for managing library books
+  version: 2.0.0
+  description: >
+    API for tracking library books across a household's library cards. Hand-maintained: update it
+    with any handler change in api/.
 
 servers:
   - url: /api
@@ -14,291 +16,246 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: JWT token for authentication
+      description: 72-hour JWT returned by /auth/register and /auth/login
+    cronSecret:
+      type: http
+      scheme: bearer
+      description: The CRON_SECRET env var; Vercel Cron sends it automatically
 
   schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+
     Book:
       type: object
-      required:
-        - id
-        - isbn
-        - title
-        - state
+      required: [id, isbn, title, state]
       properties:
         id:
           type: string
           format: uuid
-          description: Unique identifier for the book
         isbn:
           type: string
-          description: International Standard Book Number
+          description: First ISBN from the library, or checkout-<checkoutId> when there is none
         title:
           type: string
-          description: Title of the book
+        author:
+          type: string
+          description: First author as 'First Last' (with 'and others' if there are more)
         pictureUrl:
           type: string
           format: uri
-          description: URL to the book's cover image
+          description: Cover image from the library, if any
         state:
           $ref: '#/components/schemas/BookState'
         dueDate:
           type: string
-          format: date-time
-          description: The date when the book is due to be returned
+          format: date
+          description: Library due date (YYYY-MM-DD, no time). Overdue = before today in Vancouver.
+        checkoutId:
+          type: string
+          description: BiblioCommons loan ID; the sync matches books to loans with it
         libraryCardId:
           type: string
           format: uuid
-          description: ID of the library card the book is checked out to, if any
         userId:
           type: string
           format: uuid
-          description: ID of the user who owns this book
 
     BookState:
       type: string
-      enum:
-        - checked_out
-        - found
-        - returned
-        - overdue
-
-    PasskeyCredential:
-      type: object
-      required:
-        - id
-        - publicKey
-        - algorithm
-        - authenticatorAttachment
-        - transports
-      properties:
-        id:
-          type: string
-          description: Base64URL encoded credential ID
-        publicKey:
-          type: string
-          description: Base64URL encoded public key
-        algorithm:
-          type: string
-          description: Algorithm used for the credential
-        authenticatorAttachment:
-          type: string
-          enum:
-            - platform
-            - cross-platform
-          description: Type of authenticator used
-        transports:
-          type: array
-          items:
-            type: string
-            enum:
-              - usb
-              - nfc
-              - ble
-              - internal
-          description: List of supported transport methods
-
-    PasskeyRegistrationRequest:
-      type: object
-      required:
-        - name
-        - credential
-      properties:
-        name:
-          type: string
-          description: User's name
-        credential:
-          $ref: '#/components/schemas/PasskeyCredential'
-
-    PasskeyLoginRequest:
-      type: object
-      required:
-        - credentialId
-        - authenticatorData
-        - clientDataJSON
-        - signature
-      properties:
-        credentialId:
-          type: string
-          description: Base64URL encoded credential ID
-        authenticatorData:
-          type: string
-          description: Base64URL encoded authenticator data
-        clientDataJSON:
-          type: string
-          description: Base64URL encoded client data
-        signature:
-          type: string
-          description: Base64URL encoded signature
+      description: >
+        Where the book is. checked_out = borrowed, not found in the house yet; found = borrowed and
+        located; returned = no longer on the card. Overdue is derived from dueDate, not a state.
+      enum: [checked_out, found, returned]
 
     User:
       type: object
-      required:
-        - id
-        - name
+      required: [id, name]
       properties:
         id:
           type: string
           format: uuid
-          description: Unique identifier for the user
         name:
           type: string
-          description: User's name
-        credentials:
-          type: array
-          items:
-            $ref: '#/components/schemas/PasskeyCredential'
-          description: List of registered passkey credentials
-        libraryCards:
-          type: array
-          items:
-            $ref: '#/components/schemas/LibraryCard'
-          description: List of library cards owned by the user
-        books:
-          type: array
-          items:
-            $ref: '#/components/schemas/Book'
-          description: List of books owned by the user
+
+    AuthResult:
+      type: object
+      required: [user, token]
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        token:
+          type: string
+          description: JWT for the Authorization header
+
+    Passkey:
+      type: object
+      required: [id, deviceType, backedUp, createdAt]
+      properties:
+        id:
+          type: string
+          description: Base64URL credential ID
+        deviceType:
+          type: string
+          enum: [singleDevice, multiDevice]
+          description: multiDevice passkeys sync between devices (iCloud Keychain, Google Password Manager)
+        backedUp:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        lastUsedAt:
+          type: string
+          format: date-time
+
+    PublicKeyCredentialCreationOptionsJSON:
+      type: object
+      description: >
+        WebAuthn registration options, passed as-is to startRegistration({ optionsJSON }) from
+        @simplewebauthn/browser. The challenge is single-use and expires after 5 minutes.
+
+    PublicKeyCredentialRequestOptionsJSON:
+      type: object
+      description: >
+        WebAuthn sign-in options for startAuthentication({ optionsJSON }). allowCredentials is
+        empty: the browser offers whichever discoverable passkey the user has for this site.
+
+    RegistrationResponseJSON:
+      type: object
+      description: The value returned by startRegistration() in @simplewebauthn/browser
+
+    AuthenticationResponseJSON:
+      type: object
+      description: The value returned by startAuthentication() in @simplewebauthn/browser
 
     LibraryCard:
       type: object
-      required:
-        - id
-        - number
-        - displayName
-        - system
+      required: [id, number, displayName, system]
       properties:
         id:
           type: string
           format: uuid
-          description: Unique identifier for the library card
         number:
           type: string
-          description: Library card number
+          description: Library card number (the PIN is never returned)
         displayName:
           type: string
-          description: User-defined display name for the library card
         system:
           type: string
           enum: [nwpl]
           default: nwpl
-          description: The library system this card belongs to
         userId:
           type: string
           format: uuid
-          description: ID of the user who owns this library card
-
-    BookStateUpdate:
-      type: object
-      required:
-        - id
-        - isbn
-        - state
-      properties:
-        id:
-          type: string
-          format: uuid
-          description: Unique identifier for the book
-        isbn:
-          type: string
-        state:
-          $ref: '#/components/schemas/BookState'
-        dueDate:
-          type: string
-          format: date-time
-          description: The date when the book is due to be returned
 
 paths:
-  /auth/register:
-    post:
-      summary: Register a new user with passkey
-      tags:
-        - Authentication
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PasskeyRegistrationRequest'
-      responses:
-        '201':
-          description: User registered successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  user:
-                    $ref: '#/components/schemas/User'
-                  token:
-                    type: string
-                    description: JWT token for authentication
+  # Passkey flows are two calls each: get options, let the browser create or use the passkey,
+  # then send its response back for the server to verify against the stored challenge.
 
-  /auth/login:
+  /auth/registration-options:
     post:
-      summary: Login with passkey
-      tags:
-        - Authentication
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PasskeyLoginRequest'
-      responses:
-        '200':
-          description: Login successful
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  token:
-                    type: string
-                    description: JWT token for authentication
-                  user:
-                    $ref: '#/components/schemas/User'
-
-  /auth/verify:
-    post:
-      summary: Verify a passkey credential
-      tags:
-        - Authentication
+      summary: Start creating a new account
+      security: []
+      tags: [Authentication]
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required:
-                - credentialId
+              required: [username]
               properties:
-                credentialId:
+                username:
                   type: string
-                  description: ID of the credential to verify
       responses:
         '200':
-          description: Credential verified successfully
+          description: Registration options
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  user:
-                    $ref: '#/components/schemas/User'
-                  token:
-                    type: string
-                    description: JWT token for authentication
+                $ref: '#/components/schemas/PublicKeyCredentialCreationOptionsJSON'
+        '400':
+          description: Username missing
+
+  /auth/register:
+    post:
+      summary: Finish creating a new account
+      security: []
+      description: Verifies the new passkey, then creates the user and stores the passkey.
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [response]
+              properties:
+                response:
+                  $ref: '#/components/schemas/RegistrationResponseJSON'
+      responses:
+        '201':
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResult'
+        '400':
+          description: Invalid or expired challenge, or the passkey failed verification
+
+  /auth/login-options:
+    post:
+      summary: Start signing in
+      security: []
+      tags: [Authentication]
+      responses:
+        '200':
+          description: Sign-in options
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicKeyCredentialRequestOptionsJSON'
+
+  /auth/login:
+    post:
+      summary: Finish signing in
+      security: []
+      description: Verifies the passkey's signature against the stored public key.
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [response]
+              properties:
+                response:
+                  $ref: '#/components/schemas/AuthenticationResponseJSON'
+      responses:
+        '200':
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResult'
+        '400':
+          description: Invalid, expired or already-used challenge
+        '401':
+          description: Unknown passkey or failed signature check
 
   /auth/me:
     get:
-      summary: Get the current authenticated user
-      tags:
-        - Authentication
+      summary: The signed-in user
+      tags: [Authentication]
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Current user information
+          description: Current user
           content:
             application/json:
               schema:
@@ -309,24 +266,109 @@ paths:
         '401':
           description: Authentication required
 
+  /auth/passkeys:
+    get:
+      summary: List the signed-in user's passkeys
+      tags: [Authentication]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Passkeys, oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Passkey'
+        '401':
+          description: Authentication required
+    post:
+      summary: Finish adding a passkey to the signed-in account
+      tags: [Authentication]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [response]
+              properties:
+                response:
+                  $ref: '#/components/schemas/RegistrationResponseJSON'
+      responses:
+        '201':
+          description: Passkey added
+        '400':
+          description: Invalid or expired challenge, or the passkey failed verification
+        '401':
+          description: Authentication required
+
+  /auth/passkey-options:
+    post:
+      summary: Start adding a passkey to the signed-in account
+      description: excludeCredentials lists the user's existing passkeys so a device isn't registered twice.
+      tags: [Authentication]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Registration options
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicKeyCredentialCreationOptionsJSON'
+        '401':
+          description: Authentication required
+
+  /auth/passkeys/{id}:
+    delete:
+      summary: Remove one of the signed-in user's passkeys
+      tags: [Authentication]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Removed
+        '400':
+          description: It is the user's only passkey
+        '401':
+          description: Authentication required
+        '404':
+          description: No such passkey on this account
+
   /books:
     get:
-      summary: Get books by states
-      tags:
-        - Books
+      summary: The signed-in user's books
+      tags: [Books]
       security:
         - bearerAuth: []
       parameters:
         - name: states
           in: query
           required: false
+          description: Comma-separated states to include, e.g. checked_out,found. Omit for all.
           schema:
-            type: array
-            items:
-              $ref: '#/components/schemas/BookState'
+            type: string
+        - name: overdue
+          in: query
+          required: false
+          description: >
+            true = only books due before today (Vancouver) that aren't returned, oldest due date
+            first. Combines with states.
+          schema:
+            type: boolean
       responses:
         '200':
-          description: List of books belonging to the authenticated user
+          description: Books, by title (or by due date when overdue=true)
           content:
             application/json:
               schema:
@@ -337,9 +379,8 @@ paths:
           description: Authentication required
 
     post:
-      summary: Create a new book
-      tags:
-        - Books
+      summary: Add a book by hand
+      tags: [Books]
       security:
         - bearerAuth: []
       requestBody:
@@ -348,23 +389,18 @@ paths:
           application/json:
             schema:
               type: object
-              required:
-                - isbn
-                - title
+              required: [isbn, title]
               properties:
                 isbn:
                   type: string
-                  description: International Standard Book Number
                 title:
                   type: string
-                  description: Title of the book
                 pictureUrl:
                   type: string
                   format: uri
-                  description: URL to the book's cover image
       responses:
         '201':
-          description: Book created successfully
+          description: Book created (state found)
           content:
             application/json:
               schema:
@@ -372,10 +408,10 @@ paths:
         '401':
           description: Authentication required
 
+  /books/states:
     put:
-      summary: Update states of multiple books
-      tags:
-        - Books
+      summary: Change the state of one or more books
+      tags: [Books]
       security:
         - bearerAuth: []
       requestBody:
@@ -383,26 +419,38 @@ paths:
         content:
           application/json:
             schema:
-              type: array
-              items:
-                $ref: '#/components/schemas/BookStateUpdate'
+              type: object
+              required: [updates]
+              properties:
+                updates:
+                  type: array
+                  items:
+                    type: object
+                    required: [id, state]
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      state:
+                        $ref: '#/components/schemas/BookState'
       responses:
         '200':
-          description: States updated successfully
+          description: The updated books (ids not owned by the user are skipped)
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: '#/components/schemas/Book'
+        '400':
+          description: updates missing, or an entry without an id or with an unknown state
         '401':
           description: Authentication required
 
   /books/{id}:
     delete:
       summary: Delete a book
-      tags:
-        - Books
+      tags: [Books]
       security:
         - bearerAuth: []
       parameters:
@@ -414,11 +462,29 @@ paths:
             format: uuid
       responses:
         '204':
-          description: Book deleted successfully
+          description: Book deleted
         '401':
           description: Authentication required
         '404':
           description: Book not found or access denied
+
+  /sync-books:
+    get:
+      summary: Sync every library card with BiblioCommons (daily Vercel cron)
+      description: >
+        For each card: log in, fetch current checkouts, match them to books by checkoutId, create
+        new loans, and mark books the library no longer lists as returned. A card that fails
+        (login error, unexpected response) is left untouched.
+      tags: [Sync]
+      security:
+        - cronSecret: []
+      responses:
+        '200':
+          description: Every card synced
+        '401':
+          description: Missing or wrong CRON_SECRET
+        '500':
+          description: At least one card failed; the body lists per-card results and errors
 
   /library-cards:
     get:
@@ -503,7 +569,6 @@ paths:
               type: object
               required:
                 - number
-                - pin
                 - displayName
                 - system
               properties:
@@ -512,7 +577,7 @@ paths:
                   description: Library card number
                 pin:
                   type: string
-                  description: Library card PIN
+                  description: New PIN; omit to keep the current one
                 displayName:
                   type: string
                   description: User-defined display name for the library card

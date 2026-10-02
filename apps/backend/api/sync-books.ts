@@ -1,8 +1,7 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { AppDataSource } from '../lib/ormconfig';
-import { Book, BookState } from '../lib/entities/Book';
 import { LibraryCard } from '../lib/entities/LibraryCard';
-import { getCheckedOutBooks } from '../lib/utils/library-sync';
+import { syncLibraryCard } from '../lib/utils/book-sync';
 
 // This endpoint is designed to be called by a Vercel Cron Job
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -14,86 +13,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    // Initialize the database connection if not already initialized
     if (!AppDataSource.isInitialized) {
       await AppDataSource.initialize();
     }
 
-    console.log('[Cron Job] Starting daily book sync task');
+    const libraryCards = await AppDataSource.getRepository(LibraryCard).find();
+    console.log(`[Cron Job] Syncing ${libraryCards.length} library cards`);
 
-    // Get all library cards to potentially fetch data from multiple library systems
-    const libraryCardRepository = AppDataSource.getRepository(LibraryCard);
-    const bookRepository = AppDataSource.getRepository(Book);
+    // In parallel: each card is several sequential requests to BiblioCommons, and the function
+    // has a short time limit. A failure on one card leaves that card's books untouched.
+    const outcomes = await Promise.allSettled(libraryCards.map((card) => syncLibraryCard(card)));
 
-    const libraryCards = await libraryCardRepository.find({});
-
-    console.log(`[Cron Job] Processing ${libraryCards.length} library cards`);
-
-    // Track the results of our sync operation
-    const syncResults = {
-      processedCards: libraryCards.length,
-      updatedBooks: 0,
-      errors: [] as string[],
-    };
-
-    // For each library card, we will fetch the checked-out books
-    for (const card of libraryCards) {
-      console.log(`[Cron Job] Processing card ${card.id}`);
-      try {
-        // Skip if no card number or PIN
-        if (!card.number || !card.pin) {
-          syncResults.errors.push(`Library card ${card.id} is missing card number or PIN`);
-          continue;
-        }
-
-        // Fetch books from the library system based on the card
-        const checkedOutBooks = await getCheckedOutBooks(card.number, card.pin, card.system);
-
-        console.log(`[Cron Job] Retrieved ${checkedOutBooks.length} books for card ${card.id}`);
-
-        // Process each book - update existing or create new ones
-        for (const bookData of checkedOutBooks) {
-          // Check if book already exists in our database by ISBN
-          let book = bookData.isbn
-            ? await bookRepository.findOne({
-                where: { isbn: bookData.isbn },
-              })
-            : null;
-
-          if (!book) {
-            // Create new book if not found
-            const isbn =
-              bookData.isbn ||
-              `placeholder-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
-            book = new Book(isbn, bookData.title, bookData.coverImage);
-            book.title = bookData.title;
-            book.state = BookState.CHECKED_OUT;
-            book.libraryCardId = card.id;
-            book.userId = card.userId;
-          }
-
-          book.dueDate = bookData.dueDate;
-
-          // If the book is already overdue, mark it accordingly
-          if (book.dueDate < new Date()) {
-            book.state = BookState.OVERDUE;
-          }
-
-          await bookRepository.save(book);
-          syncResults.updatedBooks++;
-        }
-      } catch (error) {
-        console.error(`[Cron Job] Error processing library card ${card.id}:`, error);
-        syncResults.errors.push(`Error processing library card ${card.id}: ${error}`);
+    const results = libraryCards.map((card, i) => {
+      const outcome = outcomes[i];
+      if (outcome.status === 'fulfilled') {
+        return { libraryCardId: card.id, ...outcome.value };
       }
-    }
-
-    console.log('[Cron Job] Book sync completed successfully');
-    return res.status(200).json({
-      success: true,
-      message: 'Daily book sync completed',
-      results: syncResults,
+      console.error(`[Cron Job] Library card ${card.id} failed:`, String(outcome.reason));
+      return { libraryCardId: card.id, error: String(outcome.reason) };
     });
+
+    const failed = results.filter((result) => 'error' in result).length;
+    console.log(`[Cron Job] Done: ${libraryCards.length - failed} cards synced, ${failed} failed`);
+    // Any card failing returns 500 so the run shows as failed in Vercel's cron log
+    return res.status(failed ? 500 : 200).json({ success: failed === 0, results });
   } catch (error) {
     console.error('[Cron Job] Error in daily book sync:', error);
     return res.status(500).json({
