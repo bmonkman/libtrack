@@ -71,10 +71,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       await AppDataSource.initialize();
     }
 
-    const path = new URL(req.url ?? '', 'http://localhost').pathname.split('/').pop();
+    // e.g. /api/auth/passkeys/<id> -> route 'passkeys', resourceId '<id>'
+    const [route, resourceId] = new URL(req.url ?? '', 'http://localhost').pathname
+      .replace(/^\/api\/auth\/?/, '')
+      .split('/');
     const { rpID } = getRelyingParty();
 
-    switch (`${req.method} ${path}`) {
+    switch (`${req.method} ${route}`) {
       case 'GET me': {
         const authUser = await requireAuth(req, res);
         if (!authUser) return;
@@ -137,6 +140,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
 
         return res.status(201).json(authResult(user));
+      }
+
+      case 'GET passkeys': {
+        const authUser = await requireAuth(req, res);
+        if (!authUser) return;
+
+        const credentials = await credentialRepository.find({
+          where: { userId: authUser.id },
+          order: { createdAt: 'ASC' },
+        });
+        return res.json(
+          credentials.map(({ id, deviceType, backedUp, createdAt, lastUsedAt }) => ({
+            id,
+            deviceType,
+            backedUp,
+            createdAt,
+            lastUsedAt,
+          }))
+        );
+      }
+
+      case 'DELETE passkeys': {
+        const authUser = await requireAuth(req, res);
+        if (!authUser) return;
+        if (!resourceId) {
+          return res.status(400).json({ error: 'Passkey ID is required' });
+        }
+
+        const credentials = await credentialRepository.findBy({ userId: authUser.id });
+        if (!credentials.some((cred) => cred.id === resourceId)) {
+          return res.status(404).json({ error: 'Passkey not found' });
+        }
+        if (credentials.length === 1) {
+          return res.status(400).json({ error: "Can't remove your only passkey" });
+        }
+
+        await credentialRepository.delete({ id: resourceId, userId: authUser.id });
+        return res.status(204).end();
       }
 
       // Step 1 of adding another passkey (e.g. a new device) to the signed-in account

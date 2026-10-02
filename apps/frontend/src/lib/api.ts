@@ -4,7 +4,7 @@ import type {
 	PublicKeyCredentialRequestOptionsJSON,
 	RegistrationResponseJSON
 } from '@simplewebauthn/browser';
-import type { Book, BookState, LibraryCard, User } from './types';
+import type { Book, BookState, LibraryCard, Passkey, User } from './types';
 
 // Use the Vercel deployment URL in production, or local API in development
 const API_BASE_URL =
@@ -80,6 +80,9 @@ async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise
 		throw new Error(body?.error ?? `API error: ${response.statusText}`);
 	}
 
+	if (response.status === 204) {
+		return undefined as T;
+	}
 	return response.json();
 }
 
@@ -121,6 +124,11 @@ export const authApi = {
 			method: 'POST',
 			body: JSON.stringify({ response })
 		}),
+
+	listPasskeys: () => fetchApi<Passkey[]>('/auth/passkeys'),
+
+	deletePasskey: (id: string) =>
+		fetchApi<void>(`/auth/passkeys/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
 	getCurrentUser: () => fetchApi<{ user: User }>('/auth/me').then((res) => res.user),
 

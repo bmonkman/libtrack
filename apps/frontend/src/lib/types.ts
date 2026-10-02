@@ -33,3 +33,12 @@ export interface User {
 	id: string;
 	name: string;
 }
+
+export interface Passkey {
+	id: string;
+	// 'multiDevice' passkeys sync between devices (iCloud Keychain, Google Password Manager)
+	deviceType: 'singleDevice' | 'multiDevice';
+	backedUp: boolean;
+	createdAt: string;
+	lastUsedAt?: string;
+}
