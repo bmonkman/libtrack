@@ -33,7 +33,8 @@ test('register, add a second passkey, sign out and back in with it', async ({
 	expect(await page.evaluate(() => localStorage.getItem('auth_token'))).toBeNull();
 
 	await page.getByRole('button', { name: 'Sign in with passkey' }).click();
-	await expect(page).toHaveURL(/\/books$/);
+	// Like registration (fixtures.ts), sign-in can be slow under parallel load on vercel dev
+	await expect(page).toHaveURL(/\/books$/, { timeout: 30_000 });
 
 	// Remove the first passkey; the one on the second authenticator remains
 	await page.getByRole('link', { name: 'Account' }).click();

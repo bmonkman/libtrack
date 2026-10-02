@@ -13,8 +13,8 @@ production). Deployed as the `libtrack-api` Vercel project at https://libtrack-a
 - `lib/` — entities, the TypeORM data source (`ormconfig.ts`) and helpers. The book-sync rules are
   in `lib/utils/book-sync.ts`, with unit tests beside them.
 - `migrations/` — schema changes (TypeORM `synchronize` is off)
-- `scripts/` — `seed.ts` (sample data for local dev) and `sync-books-cli.ts` (fetch one real
-  card's checkouts)
+- `scripts/` — `seed.ts` (sample data for local dev), `sync-books-cli.ts` (fetch one real
+  card's checkouts) and `try-photo-match.ts` (run photo matching on a real photo)
 - `openapi.yaml` — the API reference. Hand-maintained: update it with any handler change.
 
 ## Local setup
@@ -42,6 +42,8 @@ Never point `.env` at the production database, and don't `vercel env pull` over 
 | `ALLOWED_ORIGIN` | The frontend's URL. Used for CORS and as the passkey's expected origin. |
 | `WEBAUTHN_RP_ID` | The frontend's domain (the passkey "relying party"). Defaults to `localhost`. |
 | `NODE_ENV` | `development` locally. |
+| `GEMINI_API_KEY` | Google AI Studio key for photo matching. Optional locally; without it `/books/identify` returns 503. |
+| `GEMINI_MODEL` | Optional: force one model for photo matching instead of the default Flash-Lite → 3.8 Flash fallback. |
 
 ## Commands
 
@@ -69,5 +71,6 @@ See `openapi.yaml`. In short:
 - `GET /api/auth/me` — the signed-in user
 - `GET|POST /api/auth/passkeys`, `POST /api/auth/passkey-options`, `DELETE /api/auth/passkeys/{id}` — manage passkeys
 - `GET /api/books?states=…&overdue=true`, `POST /api/books`, `PUT /api/books/states`, `DELETE /api/books/{id}`
+- `POST /api/books/identify` — which still-out books are in a photo (changes nothing)
 - `GET|POST /api/library-cards`, `PUT|DELETE /api/library-cards/{id}`
 - `GET /api/sync-books` — cron only

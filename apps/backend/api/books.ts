@@ -5,11 +5,53 @@ import { In, LessThan } from 'typeorm';
 import { handleCors } from '../lib/utils/utils';
 import { requireAuth } from '../lib/utils/auth';
 import { todayInLibraryTimeZone } from '../lib/utils/dates';
+import { findBooksInPhoto, PhotoMatchUnavailableError } from '../lib/utils/photo-match';
+import { ApiError as GeminiApiError } from '@google/genai';
 
 const isBookState = (value: unknown): value is BookState =>
   Object.values(BookState).includes(value as BookState);
 
 const bookRepository = AppDataSource.getRepository(Book);
+
+// Vercel rejects request bodies over 4.5 MB; the frontend shrinks photos well below this
+const MAX_PHOTO_BYTES = 4 * 1024 * 1024;
+const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
+
+// POST /books/identify: which of the user's still-out books are in this photo? Changes
+// nothing; the frontend shows the matches and the user confirms them with PUT /books/states.
+async function identifyBooksInPhoto(req: VercelRequest, res: VercelResponse, userId: string) {
+  const { image, mimeType } = req.body ?? {};
+  if (typeof image !== 'string' || !image || !PHOTO_TYPES.includes(mimeType)) {
+    return res.status(400).json({ error: 'Send a base64 image and its mimeType' });
+  }
+  if (Buffer.byteLength(image, 'base64') > MAX_PHOTO_BYTES) {
+    return res.status(413).json({ error: 'Photo is too large' });
+  }
+
+  const books = await bookRepository.find({
+    where: { userId, state: BookState.CHECKED_OUT },
+    order: { title: 'ASC' },
+  });
+
+  try {
+    const matches = await findBooksInPhoto(
+      { data: image, mimeType },
+      books.map(({ id, title, author }) => ({ id, title, author }))
+    );
+    return res.json(matches);
+  } catch (error) {
+    if (error instanceof PhotoMatchUnavailableError) {
+      return res.status(503).json({ error: "Photo matching isn't set up" });
+    }
+    if (error instanceof GeminiApiError && (error.status === 429 || error.status === 503)) {
+      return res.status(429).json({ error: 'Photo matching is busy. Try again in a minute.' });
+    }
+    console.error('Photo matching failed:', error);
+    return res
+      .status(502)
+      .json({ error: 'Photo matching failed. Try again, or tap Found instead.' });
+  }
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleCors(req, res)) return;
@@ -23,6 +65,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const authUser = await requireAuth(req, res);
     if (!authUser) {
       return; // requireAuth has already sent the response
+    }
+
+    // e.g. /api/books/identify -> 'identify'
+    const route = new URL(req.url ?? '', 'http://localhost').pathname
+      .replace(/^\/api\/books\/?/, '')
+      .split('/')[0];
+    if (req.method === 'POST' && route === 'identify') {
+      return identifyBooksInPhoto(req, res, authUser.id);
     }
 
     switch (req.method) {

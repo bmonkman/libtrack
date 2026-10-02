@@ -5,7 +5,7 @@ import type {
 	PublicKeyCredentialRequestOptionsJSON,
 	RegistrationResponseJSON
 } from '@simplewebauthn/browser';
-import type { Book, BookState, LibraryCard, Passkey, User } from './types';
+import type { Book, BookState, LibraryCard, Passkey, PhotoMatches, User } from './types';
 
 // Set per environment in Vercel and in .env.local for local dev
 const API_BASE_URL = PUBLIC_API_BASE_URL;
@@ -148,6 +148,13 @@ export const booksApi = {
 		const query = params.toString();
 		return fetchApi<Book[]>(`/books${query ? `?${query}` : ''}`);
 	},
+
+	// Which still-out books are in this photo? Changes nothing on its own.
+	identifyInPhoto: (image: { data: string; mimeType: string }) =>
+		fetchApi<PhotoMatches>('/books/identify', {
+			method: 'POST',
+			body: JSON.stringify({ image: image.data, mimeType: image.mimeType })
+		}),
 
 	updateStates: (updates: Array<{ id: string; state: BookState }>) =>
 		fetchApi<Book[]>('/books/states', {

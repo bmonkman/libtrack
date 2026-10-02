@@ -41,3 +41,9 @@ export interface Passkey {
 	createdAt: string;
 	lastUsedAt?: string;
 }
+
+// Book ids from POST /books/identify. "maybe" ones are shown unticked for the user to check.
+export interface PhotoMatches {
+	sure: string[];
+	maybe: string[];
+}

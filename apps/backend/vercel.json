@@ -1,14 +1,22 @@
 {
   "functions": {
     "api/*.ts": {
-      "memory": 512,
-      "maxDuration": 10
+      "maxDuration": 30
     }
   },
   "routes": [
-    { "src": "/api/library-cards/.*", "dest": "/api/library-cards.ts" },
-    { "src": "/api/books/.*", "dest": "/api/books.ts" },
-    { "src": "/api/auth/.*", "dest": "/api/auth.ts" }
+    {
+      "src": "/api/library-cards/.*",
+      "dest": "/api/library-cards.ts"
+    },
+    {
+      "src": "/api/books/.*",
+      "dest": "/api/books.ts"
+    },
+    {
+      "src": "/api/auth/.*",
+      "dest": "/api/auth.ts"
+    }
   ],
   "crons": [
     {
