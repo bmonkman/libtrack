@@ -53,6 +53,9 @@ const SAMPLE_BOOKS: [string, string, string, BookState, number][] = [
   ['Madeline', 'Ludwig Bemelmans', '9780140501988', BookState.RETURNED, -45],
 ];
 
+// Books the library is charging for as lost (still in the house), in cents
+const LOST_CHARGES: Record<string, number> = { 'Harold and the Purple Crayon': 700 };
+
 async function seedUser(user: User): Promise<void> {
   const today = todayInLibraryTimeZone();
   const cards = await AppDataSource.getRepository(LibraryCard).save([
@@ -70,11 +73,23 @@ async function seedUser(user: User): Promise<void> {
       state,
       dueDate: addDays(today, dueInDays),
       checkoutId: `seed-${user.id.slice(0, 8)}-${i}`,
+      lostChargeCents: LOST_CHARGES[title] ?? null,
       libraryCardId: cards[i % cards.length].id,
       userId: user.id,
     })
   );
   await AppDataSource.getRepository(Book).save(books);
+
+  // Each card owes what its lost books are charged
+  for (const card of cards) {
+    const balanceCents = books
+      .filter((book) => book.libraryCardId === card.id)
+      .reduce((sum, book) => sum + (book.lostChargeCents ?? 0), 0);
+    await AppDataSource.getRepository(LibraryCard).update(card.id, {
+      balanceCents,
+      balanceUpdatedAt: new Date(),
+    });
+  }
   console.log(`Seeded ${user.name} (${user.id}): ${cards.length} cards, ${books.length} books`);
 }
 

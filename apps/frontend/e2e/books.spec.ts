@@ -99,3 +99,20 @@ test('the books API rejects unknown states instead of returning everything', asy
 	});
 	expect(response.status()).toBe(400);
 });
+
+test('a book the library charges as lost shows the charge, and its card shows the balance', async ({
+	page,
+	seededUser: _
+}) => {
+	await page.goto('/books');
+	await expect(bookRow(page, 'Harold and the Purple Crayon')).toContainText(
+		'Library says lost: $7.00'
+	);
+	await expect(bookRow(page, 'Corduroy')).not.toContainText('Library says lost');
+
+	await page.getByRole('link', { name: 'Library Cards' }).click();
+	await expect(page).toHaveURL(/\/library-cards$/);
+	await expect(page.locator('canvas').first()).toBeVisible();
+	await expect(page.locator('li', { hasText: 'Sample Card B' })).toContainText('Owes $7.00');
+	await expect(page.locator('li', { hasText: 'Sample Card A' })).toContainText('No fines');
+});

@@ -14,7 +14,8 @@ production). Deployed as the `libtrack-api` Vercel project at https://libtrack-a
   in `lib/utils/book-sync.ts`, with unit tests beside them.
 - `migrations/` — schema changes (TypeORM `synchronize` is off)
 - `scripts/` — `seed.ts` (sample data for local dev), `sync-books-cli.ts` (fetch one real
-  card's checkouts) and `try-photo-match.ts` (run photo matching on a real photo)
+  card's checkouts and fines), `capture-nwpl.ts` (save one card's raw BiblioCommons responses,
+  read-only) and `try-photo-match.ts` (run photo matching on a real photo)
 - `openapi.yaml` — the API reference. Hand-maintained: update it with any handler change.
 
 ## Local setup

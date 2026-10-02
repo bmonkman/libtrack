@@ -5,6 +5,7 @@
 	import { BookState } from '$lib/types';
 	import { daysUntilDue, isOverdue, parseDueDate } from '$lib/dates';
 	import { photoToJpegBase64 } from '$lib/image';
+	import { formatDollars } from '$lib/money';
 
 	type Filter = 'still_out' | 'found' | 'overdue' | 'returned' | 'all';
 
@@ -251,6 +252,7 @@
 				bind:this={photoInput}
 				type="file"
 				accept="image/*"
+				capture="environment"
 				class="hidden"
 				on:change={handlePhoto}
 			/>
@@ -368,6 +370,13 @@
 							<div class="min-w-0 flex-1 text-center sm:text-left">
 								<div class="flex items-center">
 									<p class="truncate text-sm font-medium text-indigo-600">{book.title}</p>
+									{#if book.lostChargeCents}
+										<span
+											class="inline-flex items-center self-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-900 sm:ml-2 sm:self-auto"
+										>
+											Library says lost: {formatDollars(book.lostChargeCents)}
+										</span>
+									{/if}
 									{#if overdue}
 										<span
 											class="inline-flex items-center self-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800 sm:ml-2 sm:self-auto"

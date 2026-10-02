@@ -46,6 +46,15 @@ export class Book {
   @Column({ nullable: true })
   checkoutId?: string;
 
+  // The library's id for the title (shared by every copy); links a book to its lost charge
+  @Column({ nullable: true })
+  metadataId?: string;
+
+  // Set while the library is charging for this book as lost. The book stays on the user's list
+  // (it's somewhere in the house) instead of being marked returned.
+  @Column({ type: 'integer', nullable: true })
+  lostChargeCents?: number | null;
+
   @Column({ nullable: true })
   libraryCardId?: string;
 

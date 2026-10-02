@@ -57,6 +57,14 @@ components:
         checkoutId:
           type: string
           description: BiblioCommons loan ID; the sync matches books to loans with it
+        metadataId:
+          type: string
+          description: The library's id for the title, shared by every copy
+        lostChargeCents:
+          type: [integer, 'null']
+          description: >
+            Set while the library charges for this book as lost. The book keeps its state
+            instead of being returned, because it's still in the house.
         libraryCardId:
           type: string
           format: uuid
@@ -147,6 +155,12 @@ components:
           type: string
           enum: [nwpl]
           default: nwpl
+        balanceCents:
+          type: [integer, 'null']
+          description: Charges minus credits from the last sync; null until a sync has read it
+        balanceUpdatedAt:
+          type: [string, 'null']
+          format: date-time
         userId:
           type: string
           format: uuid
@@ -529,9 +543,10 @@ paths:
     get:
       summary: Sync every library card with BiblioCommons (daily Vercel cron)
       description: >
-        For each card: log in, fetch current checkouts, match them to books by checkoutId, create
-        new loans, and mark books the library no longer lists as returned. A card that fails
-        (login error, unexpected response) is left untouched.
+        For each card: log in, fetch current checkouts and fines, match loans to books by
+        checkoutId, create new loans, keep books billed as lost (with lostChargeCents), mark other
+        books the library no longer lists as returned, and update the card's balance. A card that
+        fails (login error, unexpected response) is left untouched.
       tags: [Sync]
       security:
         - cronSecret: []
