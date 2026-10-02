@@ -3,7 +3,7 @@
 	import { onMount, setContext } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { ApiError, authApi, getStoredAuthToken } from '$lib/api';
+	import { ApiError, authApi, getStoredAuthToken, setSessionEndedHandler } from '$lib/api';
 	import { writable } from 'svelte/store';
 	import type { User } from '$lib/types';
 
@@ -16,6 +16,11 @@
 	// Make user store available to all components via context
 	setContext('currentUser', currentUser);
 	setContext('isLoading', isLoading);
+
+	setSessionEndedHandler(() => {
+		currentUser.set(null);
+		goto('/');
+	});
 
 	// Function to check authentication
 	async function checkAuth() {

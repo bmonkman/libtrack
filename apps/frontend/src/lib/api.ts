@@ -61,6 +61,13 @@ export class ApiError extends Error {
 	}
 }
 
+// Called when a request made with a token gets a 401, i.e. the session ended (expired, logged
+// out, or signed out from another device). The layout uses it to leave the signed-in pages.
+let onSessionEnded: (() => void) | null = null;
+export const setSessionEndedHandler = (handler: () => void): void => {
+	onSessionEnded = handler;
+};
+
 async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
 	// Add authentication header if token exists
 	const headers: Record<string, string> = {
@@ -82,8 +89,9 @@ async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise
 
 	if (!response.ok) {
 		// Handle 401 Unauthorized by clearing token
-		if (response.status === 401) {
+		if (response.status === 401 && token) {
 			setAuthToken(null);
+			onSessionEnded?.();
 		}
 		const body = await response.json().catch(() => null);
 		throw new ApiError(body?.error ?? `API error: ${response.statusText}`, response.status);

@@ -140,6 +140,18 @@ test('signing out ends sessions on the server', async ({ page, signedInUser }) =
 	expect((await me(signedInUser.token)).status()).toBe(401);
 });
 
+test('a session ended on another device signs this page out', async ({ page, signedInUser }) => {
+	// Same as this device being signed out from another one's Account page
+	await page.request.post(`${API_URL}/auth/logout`, {
+		headers: { Authorization: `Bearer ${signedInUser.token}` }
+	});
+
+	await page.getByRole('link', { name: 'Library Cards' }).click();
+	await expect(page.getByRole('button', { name: 'Sign in with passkey' })).toBeVisible();
+	await expect(page.getByRole('link', { name: 'Account' })).toHaveCount(0);
+	expect(await page.evaluate(() => localStorage.getItem('auth_token'))).toBeNull();
+});
+
 test('auth endpoints refuse what they should', async ({ request }) => {
 	expect((await request.post(`${API_URL}/auth/verify`)).status()).toBe(404);
 	expect((await request.post(`${API_URL}/auth/passkey-options`)).status()).toBe(401);

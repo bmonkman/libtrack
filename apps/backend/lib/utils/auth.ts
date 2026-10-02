@@ -1,6 +1,6 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createHash, randomBytes } from 'node:crypto';
-import { LessThan } from 'typeorm';
+import { LessThan, LessThanOrEqual } from 'typeorm';
 import { AppDataSource } from '../ormconfig';
 import { Session } from '../entities/Session';
 
@@ -55,11 +55,16 @@ const getAuthUser = async (req: VercelRequest): Promise<AuthUser | null> => {
     return null;
   }
 
+  // The lastUsedAt condition is rechecked under the row lock, so when a page fires several
+  // requests at once only the first one writes
   if (sessionNeedsExtending(session.lastUsedAt, now)) {
-    await repository.update(session.id, {
-      lastUsedAt: now,
-      expiresAt: new Date(now.getTime() + SESSION_IDLE_LIMIT_MS),
-    });
+    await repository.update(
+      {
+        id: session.id,
+        lastUsedAt: LessThanOrEqual(new Date(now.getTime() - SESSION_EXTEND_EVERY_MS)),
+      },
+      { lastUsedAt: now, expiresAt: new Date(now.getTime() + SESSION_IDLE_LIMIT_MS) }
+    );
   }
   return { id: session.user.id, name: session.user.name, sessionId: session.id };
 };
