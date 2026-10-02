@@ -9,7 +9,7 @@ It features a modern SvelteKit frontend with Tailwind CSS styling and a TypeScri
 
 ### Key Features
 
-- **Book Management**: Track books with states (checked out, found, returned, overdue)
+- **Book Management**: Track whether each borrowed book is still out, found in the house, or returned, with overdue books flagged from their due dates
 - **Library Cards**: Manage library cards with display names and system associations
 - **Modern UI**: Responsive design with Tailwind CSS
 - **Type Safety**: Full TypeScript support throughout the stack
@@ -20,40 +20,40 @@ It features a modern SvelteKit frontend with Tailwind CSS styling and a TypeScri
 
 ```
 libtrack/
-├── apps/
-│   ├── frontend/           # SvelteKit frontend application
-│   │   ├── src/
-│   │   │   ├── lib/       # Shared frontend code
-│   │   │   └── routes/    # SvelteKit routes
-│   │   └── static/        # Static assets
-│   │
-│   └── backend/           # Vercel serverless backend
-│       ├── api/           # API endpoints
-│       ├── entities/      # TypeORM entities
-│       └── migrations/    # Database migrations
-│
-└── .devcontainer/         # Development container configuration
+├── package.json            # root dev scripts (setup, dev, check, test:e2e)
+├── docker-compose.yml      # local Postgres
+├── CLAUDE.md               # architecture, deploy and release notes
+├── .claude/skills/         # how Claude runs, tests and screenshots the app
+└── apps/
+    ├── frontend/           # SvelteKit app (Vercel project: libtrack)
+    │   ├── src/lib/        # API client, types, date helpers
+    │   ├── src/routes/     # pages
+    │   └── e2e/            # Playwright tests
+    └── backend/            # Vercel serverless API (Vercel project: libtrack-api)
+        ├── api/            # endpoints only (one function per file)
+        ├── lib/            # entities, data source, sync logic
+        ├── migrations/     # schema migrations
+        └── scripts/        # seed data, one-card sync CLI
 ```
 
 ## Development
 
-The project uses a development container for a consistent development environment. See the [.devcontainer/README.md](.devcontainer/README.md) for setup instructions.
+### Running locally
 
-### Frontend Development
+An optional dev container is described in [.devcontainer/README.md](.devcontainer/README.md).
 
-```bash
-cd apps/frontend
-npm install
-npm run vercel:dev
-```
-
-### Backend Development
+Requires Docker and Node 22.
 
 ```bash
-cd apps/backend
-npm install
-npm run vercel:dev
+cp apps/backend/.env.example apps/backend/.env          # then set JWT_SECRET
+cp apps/frontend/.env.example apps/frontend/.env.local
+npm install && npm run setup                            # installs, starts Postgres, migrates
+npm run dev                                             # http://localhost:5173
 ```
+
+Register in the browser, then `npm run db:seed` to give your account sample cards and books.
+Tests: `npm run check` and `npm run test:e2e`. More detail in `CLAUDE.md` and
+`.claude/skills/libtrack-dev/SKILL.md`.
 
 ## Project Creation
 

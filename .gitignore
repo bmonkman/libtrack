@@ -2,3 +2,5 @@
 .history
 .vercel
 .env*.local
+!**/.env.example
+node_modules

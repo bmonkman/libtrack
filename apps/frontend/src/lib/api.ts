@@ -1,3 +1,4 @@
+import { PUBLIC_API_BASE_URL } from '$env/static/public';
 import type {
 	AuthenticationResponseJSON,
 	PublicKeyCredentialCreationOptionsJSON,
@@ -6,10 +7,8 @@ import type {
 } from '@simplewebauthn/browser';
 import type { Book, BookState, LibraryCard, Passkey, User } from './types';
 
-// Use the Vercel deployment URL in production, or local API in development
-const API_BASE_URL =
-	import.meta.env.PUBLIC_API_BASE_URL ||
-	(import.meta.env.DEV ? 'http://localhost:3000/api' : 'https://libtrack-api.vercel.app/api');
+// Set per environment in Vercel and in .env.local for local dev
+const API_BASE_URL = PUBLIC_API_BASE_URL;
 
 interface AuthResponse {
 	user: User;
@@ -142,12 +141,15 @@ export const authApi = {
 
 // Books API
 export const booksApi = {
-	getBooks: (states?: BookState[]) =>
-		fetchApi<Book[]>(`/books${states ? `?states=${states.join(',')}` : ''}`),
+	getBooks: ({ states, overdue }: { states?: BookState[]; overdue?: boolean } = {}) => {
+		const params = new URLSearchParams();
+		if (states?.length) params.set('states', states.join(','));
+		if (overdue) params.set('overdue', 'true');
+		const query = params.toString();
+		return fetchApi<Book[]>(`/books${query ? `?${query}` : ''}`);
+	},
 
-	updateStates: (
-		updates: Array<{ id: string; isbn: string; state: BookState; dueDate?: string }>
-	) =>
+	updateStates: (updates: Array<{ id: string; state: BookState }>) =>
 		fetchApi<Book[]>('/books/states', {
 			method: 'PUT',
 			body: JSON.stringify({ updates })

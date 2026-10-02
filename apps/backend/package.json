@@ -10,10 +10,12 @@
     "typeorm": "typeorm-ts-node-commonjs -d lib/ormconfig.ts",
     "format": "prettier --write \"**/*.ts\"",
     "format:check": "prettier --check \"**/*.ts\"",
-    "vercel:dev": "vercel dev --listen 3000",
+    "vercel:dev": "vercel dev --listen ${API_PORT:-3000}",
     "migration:generate": "typeorm-ts-node-commonjs migration:generate -d lib/ormconfig.ts",
     "migration:run": "typeorm-ts-node-commonjs migration:run -d lib/ormconfig.ts",
-    "migration:revert": "typeorm-ts-node-commonjs migration:revert -d lib/ormconfig.ts"
+    "migration:revert": "typeorm-ts-node-commonjs migration:revert -d lib/ormconfig.ts",
+    "test": "TS_NODE_TRANSPILE_ONLY=true node --test --require ts-node/register 'lib/**/*.test.ts'",
+    "seed": "ts-node scripts/seed.ts"
   },
   "dependencies": {
     "@simplewebauthn/server": "^14.0.3",

@@ -1,0 +1,18 @@
+{
+  "name": "libtrack",
+  "private": true,
+  "description": "Root dev scripts. The apps keep their own package.json and lockfile; Vercel builds each from its own directory.",
+  "scripts": {
+    "setup": "npm --prefix apps/backend ci && npm --prefix apps/frontend ci && npm run db:up && npm run db:migrate",
+    "db:up": "docker compose up -d --wait db",
+    "db:down": "docker compose down",
+    "db:migrate": "npm --prefix apps/backend run migration:run",
+    "db:seed": "npm --prefix apps/backend run seed --",
+    "dev": "npm run db:up && concurrently --kill-others -n api,web -c blue,green \"npm --prefix apps/backend run vercel:dev\" \"PUBLIC_API_BASE_URL=http://localhost:${API_PORT:-3000}/api npm --prefix apps/frontend run dev\"",
+    "check": "npm --prefix apps/backend run build && npm --prefix apps/backend test && npm --prefix apps/frontend run check",
+    "test:e2e": "npm --prefix apps/frontend run test:e2e"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.4"
+  }
+}

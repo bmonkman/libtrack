@@ -1,95 +1,96 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { booksApi, libraryCardsApi } from '$lib/api';
-	import type { Book, LibraryCard } from '$lib/types';
+	import type { Book } from '$lib/types';
 	import { BookState } from '$lib/types';
+	import { daysUntilDue, isOverdue, parseDueDate } from '$lib/dates';
+
+	type Filter = 'still_out' | 'found' | 'overdue' | 'returned' | 'all';
+
+	const filters: { value: Filter; label: string }[] = [
+		{ value: 'still_out', label: 'Still out' },
+		{ value: 'found', label: 'Found' },
+		{ value: 'overdue', label: 'Overdue' },
+		{ value: 'returned', label: 'Returned' },
+		{ value: 'all', label: 'All' }
+	];
+
+	const stateLabels: Record<BookState, string> = {
+		[BookState.CHECKED_OUT]: 'Still out',
+		[BookState.FOUND]: 'Found',
+		[BookState.RETURNED]: 'Returned'
+	};
 
 	let books: Book[] = [];
-	let libraryCards: LibraryCard[] = [];
 	let libraryCardMap: Map<string, string> = new Map();
 	let loading = true;
 	let error: string | null = null;
-	let selectedState: BookState | 'all' = BookState.CHECKED_OUT;
+	let selectedFilter: Filter = 'still_out';
+	// Books with a state change in flight, so their buttons can't be double-clicked
+	let pendingIds = new Set<string>();
 
-	const states: (BookState | 'all')[] = [
-		'all',
-		BookState.CHECKED_OUT,
-		BookState.FOUND,
-		BookState.RETURNED,
-		BookState.OVERDUE
-	];
-
-	// Generate thumbnail URL using either the book's pictureUrl or Open Library Covers API as fallback
-	function getBookCoverUrl(book: Book): string {
-		return book.pictureUrl || `https://covers.openlibrary.org/b/isbn/${book.isbn}-M.jpg`;
+	function query(filter: Filter) {
+		switch (filter) {
+			case 'still_out':
+				return { states: [BookState.CHECKED_OUT] };
+			case 'found':
+				return { states: [BookState.FOUND] };
+			case 'returned':
+				return { states: [BookState.RETURNED] };
+			case 'overdue':
+				return { overdue: true };
+			case 'all':
+				return {};
+		}
 	}
 
-	// Format date to a user-friendly string
-	function formatDueDate(dateString?: string): string {
-		if (!dateString) return 'No due date';
+	// Whether a book still belongs in the current list after its state changes
+	function matchesFilter(book: Book, filter: Filter): boolean {
+		switch (filter) {
+			case 'still_out':
+				return book.state === BookState.CHECKED_OUT;
+			case 'found':
+				return book.state === BookState.FOUND;
+			case 'returned':
+				return book.state === BookState.RETURNED;
+			case 'overdue':
+				return book.state !== BookState.RETURNED && isOverdue(book.dueDate);
+			case 'all':
+				return true;
+		}
+	}
 
-		const date = new Date(dateString);
+	// Use either the book's pictureUrl or the Open Library Covers API as fallback
+	function getBookCoverUrl(book: Book): string {
+		// default=false makes Open Library 404 instead of returning a blank 1x1 image
+		return (
+			book.pictureUrl || `https://covers.openlibrary.org/b/isbn/${book.isbn}-M.jpg?default=false`
+		);
+	}
+
+	function formatDueDate(dueDate?: string): string {
+		if (!dueDate) return 'No due date';
 		return new Intl.DateTimeFormat('en-US', {
 			year: 'numeric',
 			month: 'short',
 			day: 'numeric'
-		}).format(date);
+		}).format(parseDueDate(dueDate));
 	}
 
-	// Format date to a relative time string (e.g. "5 days ago" or "in 2 weeks")
-	function formatRelativeTime(dateString?: string): string {
-		if (!dateString) return '';
-		
-		const date = new Date(dateString);
-		const now = new Date();
-		const diffTime = date.getTime() - now.getTime();
-		const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-		
-		// If the difference is less than a day
-		if (Math.abs(diffDays) < 1) {
-			const diffHours = Math.round(Math.abs(diffTime) / (1000 * 60 * 60));
-			if (diffHours < 1) return diffTime > 0 ? 'soon' : 'today';
-			return diffTime > 0 ? `in ${diffHours} hour${diffHours !== 1 ? 's' : ''}` : `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
-		}
-		
-		// If the difference is less than 30 days
-		if (Math.abs(diffDays) < 30) {
-			return diffDays > 0 
-				? `in ${diffDays} day${diffDays !== 1 ? 's' : ''}` 
-				: `${Math.abs(diffDays)} day${Math.abs(diffDays) !== 1 ? 's' : ''} ago`;
-		}
-		
-		// If the difference is less than 365 days
-		if (Math.abs(diffDays) < 365) {
-			const diffWeeks = Math.round(diffDays / 7);
-			return diffDays > 0 
-				? `in ${diffWeeks} week${diffWeeks !== 1 ? 's' : ''}` 
-				: `${Math.abs(diffWeeks)} week${Math.abs(diffWeeks) !== 1 ? 's' : ''} ago`;
-		}
-		
-		// More than a year
-		const diffYears = Math.floor(diffDays / 365);
-		return diffDays > 0 
-			? `in ${diffYears} year${diffYears !== 1 ? 's' : ''}` 
-			: `${Math.abs(diffYears)} year${Math.abs(diffYears) !== 1 ? 's' : ''} ago`;
-	}
-
-	// Get the display name of a library card by its ID
-	function getLibraryCardName(libraryCardId?: string): string {
-		if (!libraryCardId) return 'Unknown';
-		return libraryCardMap.get(libraryCardId) || 'Unknown';
-	}
-
-	// Check if a book is overdue
-	function isOverdue(dueDate?: string): boolean {
-		if (!dueDate) return false;
-		return new Date(dueDate) < new Date();
+	function formatRelativeDue(dueDate?: string): string {
+		if (!dueDate) return '';
+		const days = daysUntilDue(dueDate);
+		if (days === 0) return 'today';
+		if (days === 1) return 'tomorrow';
+		if (days === -1) return 'yesterday';
+		if (Math.abs(days) < 14) return days > 0 ? `in ${days} days` : `${-days} days ago`;
+		const weeks = Math.round(Math.abs(days) / 7);
+		return days > 0 ? `in ${weeks} weeks` : `${weeks} weeks ago`;
 	}
 
 	async function loadLibraryCards() {
 		try {
-			libraryCards = await libraryCardsApi.getLibraryCards();
-			// Create a map of library card IDs to their display names for quick lookup
+			const libraryCards = await libraryCardsApi.getLibraryCards();
 			libraryCardMap = new Map(libraryCards.map((card) => [card.id, card.displayName]));
 		} catch (e) {
 			console.error('Failed to load library cards:', e);
@@ -100,7 +101,7 @@
 		try {
 			loading = true;
 			error = null;
-			books = await booksApi.getBooks(selectedState === 'all' ? undefined : [selectedState]);
+			books = await booksApi.getBooks(query(selectedFilter));
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load books';
 		} finally {
@@ -108,31 +109,39 @@
 		}
 	}
 
+	// Updates just this book in the list (or drops it if it no longer matches the filter) instead
+	// of reloading, so the page doesn't jump back to the top.
 	async function updateBookState(book: Book, newState: BookState) {
+		if (book.state === newState || pendingIds.has(book.id)) return;
+
+		pendingIds = new Set(pendingIds).add(book.id);
+		error = null;
 		try {
-			await booksApi.updateStates([{ id: book.id, isbn: book.isbn, state: newState }]);
-			await loadBooks();
+			const [updated] = await booksApi.updateStates([{ id: book.id, state: newState }]);
+			// The API skips ids it can't find (e.g. deleted elsewhere), so no result means no save
+			if (!updated) {
+				throw new Error('That book no longer exists. Reload the page to refresh the list.');
+			}
+			books = matchesFilter(updated, selectedFilter)
+				? books.map((b) => (b.id === book.id ? updated : b))
+				: books.filter((b) => b.id !== book.id);
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to update book state';
+		} finally {
+			pendingIds.delete(book.id);
+			pendingIds = new Set(pendingIds);
 		}
 	}
 
-	// Helper function to quickly mark a book as found
-	function markAsFound(book: Book) {
-		updateBookState(book, BookState.FOUND);
-	}
-
-	// Handle image error
+	// Swap in a local placeholder once; clearing the handler stops a loop if that fails too
 	function handleImageError(event: Event) {
 		const target = event.target as HTMLImageElement;
-		if (target) {
-			target.src = 'https://via.placeholder.com/100x140?text=No+Cover';
-		}
+		target.onerror = null;
+		target.src = '/book-placeholder.svg';
 	}
 
 	onMount(async () => {
-		await loadLibraryCards();
-		await loadBooks();
+		await Promise.all([loadLibraryCards(), loadBooks()]);
 	});
 </script>
 
@@ -143,12 +152,12 @@
 			<div class="flex flex-col items-center">
 				<div class="mb-1">Filter by:</div>
 				<select
-					bind:value={selectedState}
+					bind:value={selectedFilter}
 					on:change={loadBooks}
 					class="mt-1 block w-40 rounded-md border-gray-300 py-2 pl-3 pr-10 text-base focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
 				>
-					{#each states as state}
-						<option value={state}>{state === 'all' ? 'all' : state}</option>
+					{#each filters as filter (filter.value)}
+						<option value={filter.value}>{filter.label}</option>
 					{/each}
 				</select>
 			</div>
@@ -179,17 +188,18 @@
 			<p class="text-gray-500">Loading books...</p>
 		</div>
 	{:else}
-		<div class="border-t border-gray-200">
-			<ul class="divide-y divide-gray-200">
-				{#each books as book}
+		<!-- On phones each book is its own card, so its Found button clearly belongs to it -->
+		<div class="border-t border-gray-200 bg-gray-100 p-3 sm:bg-white sm:p-0">
+			<ul class="space-y-3 sm:space-y-0 sm:divide-y sm:divide-gray-300">
+				{#each books as book (book.id)}
+					{@const overdue = book.state !== BookState.RETURNED && isOverdue(book.dueDate)}
 					<li
-						class="px-4 py-4 sm:px-6 {book.state === BookState.CHECKED_OUT &&
-						isOverdue(book.dueDate)
-							? 'bg-red-50'
-							: ''}"
+						class="rounded-lg border px-4 py-4 shadow-sm sm:rounded-none sm:border-0 sm:px-6 sm:shadow-none {overdue
+							? 'border-red-300 bg-red-50'
+							: 'border-gray-300 bg-white'}"
 					>
 						<div class="flex items-center">
-							<div class="mr-4 h-20 w-14 flex-shrink-0">
+							<div class="h-24 w-[4.2rem] flex-shrink-0 self-center sm:mr-4 sm:self-auto">
 								<img
 									src={getBookCoverUrl(book)}
 									alt="Book cover"
@@ -197,27 +207,33 @@
 									on:error={handleImageError}
 								/>
 							</div>
-							<div class="min-w-0 flex-1">
+							<!-- Phones stack the cover, text and buttons in one centered column -->
+							<div class="min-w-0 flex-1 text-center sm:text-left">
 								<div class="flex items-center">
 									<p class="truncate text-sm font-medium text-indigo-600">{book.title}</p>
-									{#if book.state === BookState.CHECKED_OUT && isOverdue(book.dueDate)}
+									{#if overdue}
 										<span
-											class="ml-2 inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800"
+											class="inline-flex items-center self-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800 sm:ml-2 sm:self-auto"
 										>
 											Overdue
 										</span>
 									{/if}
 								</div>
+								{#if book.author}
+									<p class="text-sm text-gray-700">{book.author}</p>
+								{/if}
 								<p class="text-sm text-gray-500">ISBN: {book.isbn}</p>
-								{#if book.state === BookState.CHECKED_OUT}
+								{#if book.state !== BookState.RETURNED}
 									<p class="mt-1 text-sm text-gray-500">
-										<span class={isOverdue(book.dueDate) ? 'font-medium text-red-500' : ''}>
-											Due: {formatDueDate(book.dueDate)} 
-											<span class="text-xs italic">({formatRelativeTime(book.dueDate)})</span>
+										<span class={overdue ? 'font-medium text-red-500' : ''}>
+											Due: {formatDueDate(book.dueDate)}
+											<span class="text-xs italic">({formatRelativeDue(book.dueDate)})</span>
 										</span>
 										{#if book.libraryCardId}
-											<span class="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-800">
-												Card: {getLibraryCardName(book.libraryCardId)}
+											<span
+												class="ml-2 inline-block whitespace-nowrap rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-800"
+											>
+												Card: {libraryCardMap.get(book.libraryCardId) ?? 'Unknown'}
 											</span>
 										{/if}
 									</p>
@@ -226,24 +242,30 @@
 							<div
 								class="ml-4 flex flex-shrink-0 flex-col items-center space-y-2 sm:flex-row sm:space-x-2 sm:space-y-0"
 							>
-								{#if book.state !== BookState.FOUND}
+								{#if book.state === BookState.CHECKED_OUT}
 									<button
-										on:click={() => markAsFound(book)}
-										class="inline-flex w-full items-center justify-center rounded-md border border-transparent bg-green-600 px-3 py-1 text-sm font-medium text-white shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 sm:w-auto"
+										on:click={() => updateBookState(book, BookState.FOUND)}
+										disabled={pendingIds.has(book.id)}
+										class="inline-flex w-full items-center justify-center rounded-md border border-transparent bg-green-600 px-3 py-1 text-sm font-medium text-white shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 sm:w-auto"
 									>
 										Found
 									</button>
 								{/if}
 								<select
 									value={book.state}
+									disabled={pendingIds.has(book.id)}
 									on:change={(e) => {
+										// Put the control back until the save succeeds; the list update then
+										// selects the new state, and a failed save leaves the real one showing
 										const target = e.target as HTMLSelectElement;
-										updateBookState(book, target.value as BookState);
+										const newState = target.value as BookState;
+										target.value = book.state;
+										updateBookState(book, newState);
 									}}
 									class="block w-full rounded-md border-gray-300 px-3 py-1 text-base focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
 								>
-									{#each states.filter((s) => s !== 'all') as state}
-										<option value={state}>{state}</option>
+									{#each Object.values(BookState) as state (state)}
+										<option value={state}>{stateLabels[state]}</option>
 									{/each}
 								</select>
 							</div>

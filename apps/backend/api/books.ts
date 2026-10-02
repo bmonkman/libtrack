@@ -1,9 +1,13 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { AppDataSource } from '../lib/ormconfig';
 import { Book, BookState } from '../lib/entities/Book';
-import { In } from 'typeorm';
+import { In, LessThan } from 'typeorm';
 import { handleCors } from '../lib/utils/utils';
 import { requireAuth } from '../lib/utils/auth';
+import { todayInLibraryTimeZone } from '../lib/utils/dates';
+
+const isBookState = (value: unknown): value is BookState =>
+  Object.values(BookState).includes(value as BookState);
 
 const bookRepository = AppDataSource.getRepository(Book);
 
@@ -23,20 +27,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     switch (req.method) {
       case 'GET': {
-        const states = Array.isArray(req.query.states)
-          ? (req.query.states as BookState[])
-          : req.query.states
-            ? [req.query.states as BookState]
-            : undefined;
+        // ?states=checked_out,found  and/or  ?overdue=true (not returned, due before today)
+        const requestedStates = String(req.query.states ?? '')
+          .split(',')
+          .filter(Boolean);
+        if (!requestedStates.every(isBookState)) {
+          return res
+            .status(400)
+            .json({ error: `states must be from: ${Object.values(BookState)}` });
+        }
+        const states = requestedStates as BookState[];
+        const overdueOnly = req.query.overdue === 'true';
 
-        // Filter books by authenticated user
         const books = await bookRepository.find({
           where: {
             userId: authUser.id,
-            ...(states ? { state: In(states) } : {}),
+            ...(overdueOnly
+              ? {
+                  state: In(states.length ? states : [BookState.CHECKED_OUT, BookState.FOUND]),
+                  dueDate: LessThan(todayInLibraryTimeZone()),
+                }
+              : states.length
+                ? { state: In(states) }
+                : {}),
           },
-          order: { title: 'ASC' },
-          relations: ['libraryCard'],
+          order: overdueOnly ? { dueDate: 'ASC', title: 'ASC' } : { title: 'ASC' },
         });
         return res.json(books);
       }
@@ -61,13 +76,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(400).json({ error: 'Updates must be an array' });
         }
 
-        const typedUpdates = updates as Array<{
-          id: string;
-          isbn: string;
-          state: BookState;
-          dueDate?: string;
-          libraryCardId?: string;
-        }>;
+        const typedUpdates = updates as Array<{ id: string; state: BookState }>;
+        if (typedUpdates.some((update) => !update?.id || !isBookState(update.state))) {
+          return res.status(400).json({ error: 'Each update needs an id and a valid state' });
+        }
 
         const updatedBooks = await Promise.all(
           typedUpdates.map(async (update) => {
@@ -75,16 +87,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const book = await bookRepository.findOne({
               where: { id: update.id, userId: authUser.id },
             });
+            if (!book) return null;
 
-            if (book) {
-              book.state = update.state;
-              book.dueDate = update.dueDate ? new Date(update.dueDate) : undefined;
-              if (update.libraryCardId) {
-                book.libraryCardId = update.libraryCardId;
-              }
-              return bookRepository.save(book);
-            }
-            return null;
+            book.state = update.state;
+            return bookRepository.save(book);
           })
         );
         return res.json(updatedBooks.filter(Boolean));

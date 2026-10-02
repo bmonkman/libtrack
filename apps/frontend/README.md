@@ -1,42 +1,44 @@
-# sv
+# LibTrack Frontend
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+SvelteKit app (Tailwind 3) deployed as the `libtrack` Vercel project at
+https://libtrack.vercel.app. Components use Svelte 4 syntax (`$:`, `on:click`, stores) on the
+Svelte 5 runtime.
 
-## Creating a project
+## Layout
 
-If you're seeing this, you've probably already done this step. Congrats!
+- `src/routes/` — pages: sign-in (`+page.svelte`), `books`, `library-cards`, `account`
+  (passkeys and log out). `+layout.svelte` holds the nav and redirects signed-out users.
+- `src/lib/api.ts` — every API call. `src/lib/types.ts` — shared types. `src/lib/dates.ts` —
+  due-date helpers (due dates are `'YYYY-MM-DD'` calendar dates; don't parse them with
+  `new Date(...)`).
+- `e2e/` — Playwright tests, desktop and phone (Pixel 7).
 
-```bash
-# create a new project in the current directory
-npx sv create
+## Local development
 
-# create a new project in my-app
-npx sv create my-app
-```
-
-## Developing
-
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
-
-```bash
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
-```
-
-## Building
-
-To create a production version of your app:
+From the repo root, `npm run dev` starts Postgres, the API and this app together (see the root
+README). To run only this app:
 
 ```bash
-npm run build
+cp .env.example .env.local   # PUBLIC_API_BASE_URL=http://localhost:3000/api
+npm install
+npm run dev                  # http://localhost:5173
 ```
 
-You can preview the production build with `npm run preview`.
+It must run on port 5173: the API checks passkeys against `ALLOWED_ORIGIN` in
+`apps/backend/.env`.
 
-## Deployment
+`PUBLIC_API_BASE_URL` is read via `$env/static/public`. In Vercel it is set separately for
+production, preview and development.
 
-Push code to main or run `vercel --prod`
+## Commands
 
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Dev server on 5173 |
+| `npm run check` | `svelte-check` type checking |
+| `npm run lint` | Prettier check and ESLint |
+| `npm run test:e2e` | Playwright tests; starts the API and this app if they aren't running (`API_PORT=3100` to move the API) |
+| `npm run screenshots` | Saves every page at desktop and phone size to `screenshots/` |
+
+The tests sign in with Chrome's virtual authenticator and seed sample data for each new user;
+see `e2e/fixtures.ts`. Install the browser once with `npx playwright install chromium`.

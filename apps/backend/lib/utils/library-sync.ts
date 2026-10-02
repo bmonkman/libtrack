@@ -2,10 +2,55 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 
 export interface BookData {
+  checkoutId: string;
   title: string;
+  author?: string;
   isbn?: string;
-  dueDate: Date;
+  dueDate: string; // 'YYYY-MM-DD'
   coverImage?: string;
+}
+
+// BiblioCommons lists authors as 'Last, First' (sometimes with dates: 'Carle, Eric, 1929-2021').
+// Shows the first author as 'First Last'; anything that isn't that shape is left as is.
+export function formatAuthor(authors?: string[]): string | undefined {
+  if (!authors?.length) return undefined;
+  const parts = authors[0]
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part) => part && !/^\d{4}/.test(part));
+  const name = parts.length === 2 ? `${parts[1]} ${parts[0]}` : parts.join(', ');
+  return authors.length > 1 ? `${name} and others` : name;
+}
+
+// One page of the gateway's checkouts response. The caller marks any book missing from the
+// result as returned, so anything that doesn't add up throws rather than reading as "no
+// checkouts". borrowing.checkouts.items lists the page's checkout IDs; each must have its
+// details in entities.checkouts. Zero checkouts is an empty items list with count 0.
+export function parseCheckoutsPage(data: any): { books: BookData[]; pages: number; total: number } {
+  const listing = data?.borrowing?.checkouts;
+  if (!Array.isArray(listing?.items) || typeof listing?.pagination?.count !== 'number') {
+    throw new Error('Unexpected checkouts response shape');
+  }
+
+  const bibs = data.entities?.bibs ?? {};
+  const details = data.entities?.checkouts ?? {};
+  const books = listing.items.map((checkoutId: string): BookData => {
+    const checkout = details[checkoutId];
+    if (!checkout) {
+      throw new Error(`Checkout ${checkoutId} is listed without details`);
+    }
+    const info = bibs[checkout.metadataId]?.briefInfo;
+    return {
+      checkoutId: String(checkout.checkoutId),
+      title: info ? info.title + (info.subtitle ? ': ' + info.subtitle : '') : checkout.bibTitle,
+      author: formatAuthor(info?.authors),
+      isbn: info?.isbns?.length > 0 ? info.isbns[0] : undefined,
+      dueDate: checkout.dueDate,
+      coverImage: info?.jacket?.medium || info?.jacket?.large || info?.jacket?.small,
+    };
+  });
+
+  return { books, pages: listing.pagination.pages ?? 1, total: listing.pagination.count };
 }
 
 /**
@@ -146,42 +191,24 @@ export async function getNWPLBooks(cardNumber: string, pin: string): Promise<Boo
       Priority: 'u=0',
     };
 
-    // Step 4: Fetch checked out books
-    const checkedOutResponse = await axios.get(
-      `https://gateway.bibliocommons.com/v2/libraries/newwestminster/checkouts?accountId=${accountId}&size=100&status=OUT&page=1&sort=status&materialType=&locale=en-CA`,
-      {
-        withCredentials: true,
-        headers,
-      }
-    );
-
-    if (
-      !checkedOutResponse.data ||
-      !checkedOutResponse.data.entities ||
-      !checkedOutResponse.data.entities.bibs
-    ) {
-      return [];
-    }
-
+    // Step 4: Fetch checked out books, page by page
     const books: BookData[] = [];
-    const bibs = checkedOutResponse.data.entities.bibs;
-    const checkouts = checkedOutResponse.data.entities.checkouts;
-
-    // Process book data
-    for (const checkoutId of Object.keys(checkouts)) {
-      const checkout = checkouts[checkoutId];
-      const metadataId = checkout.metadataId;
-      const bib = bibs[metadataId];
-
-      if (bib && bib.briefInfo) {
-        const info = bib.briefInfo;
-        books.push({
-          title: info.title + (info.subtitle ? ': ' + info.subtitle : ''),
-          isbn: info.isbns?.length > 0 ? info.isbns[0] : undefined,
-          dueDate: new Date(checkout.dueDate),
-          coverImage: info.jacket?.medium || info.jacket?.large || info.jacket?.small,
-        });
-      }
+    let total = 0;
+    for (let page = 1, pages = 1; page <= pages; page++) {
+      const { data } = await axios.get(
+        `https://gateway.bibliocommons.com/v2/libraries/newwestminster/checkouts?accountId=${accountId}&size=100&status=OUT&page=${page}&sort=status&materialType=&locale=en-CA`,
+        {
+          withCredentials: true,
+          headers,
+        }
+      );
+      const parsed = parseCheckoutsPage(data);
+      books.push(...parsed.books);
+      pages = parsed.pages;
+      total = parsed.total;
+    }
+    if (books.length !== total) {
+      throw new Error(`Checkouts count mismatch: got ${books.length}, expected ${total}`);
     }
 
     return books;
