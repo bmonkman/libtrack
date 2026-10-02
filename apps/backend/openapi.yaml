@@ -449,6 +449,61 @@ paths:
         '401':
           description: Authentication required
 
+  /books/identify:
+    post:
+      summary: Which of the user's still-out books are in a photo
+      description: >
+        Sends the photo and the user's checked_out books to Gemini. Changes nothing; the client
+        shows the matches and marks the ones the user confirms with PUT /books/states.
+      tags: [Books]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [image, mimeType]
+              properties:
+                image:
+                  type: string
+                  description: Base64 image, at most 3 MB decoded (Vercel caps the whole request at 4.5 MB)
+                mimeType:
+                  type: string
+                  enum: [image/jpeg, image/png, image/webp, image/heic, image/heif]
+      responses:
+        '200':
+          description: Book ids, split by how sure the model is
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sure, maybe]
+                properties:
+                  sure:
+                    type: array
+                    items:
+                      type: string
+                      format: uuid
+                  maybe:
+                    type: array
+                    items:
+                      type: string
+                      format: uuid
+        '400':
+          description: Missing image or unsupported type
+        '401':
+          description: Authentication required
+        '413':
+          description: Photo too large
+        '429':
+          description: Photo matching is busy (every model rate-limited or overloaded)
+        '502':
+          description: Photo matching failed
+        '503':
+          description: Photo matching isn't set up (no GEMINI_API_KEY)
+
   /books/{id}:
     delete:
       summary: Delete a book

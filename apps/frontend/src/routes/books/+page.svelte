@@ -4,6 +4,7 @@
 	import type { Book } from '$lib/types';
 	import { BookState } from '$lib/types';
 	import { daysUntilDue, isOverdue, parseDueDate } from '$lib/dates';
+	import { photoToJpegBase64 } from '$lib/image';
 
 	type Filter = 'still_out' | 'found' | 'overdue' | 'returned' | 'all';
 
@@ -28,6 +29,65 @@
 	let selectedFilter: Filter = 'still_out';
 	// Books with a state change in flight, so their buttons can't be double-clicked
 	let pendingIds = new Set<string>();
+
+	// Photo matching: the model suggests which still-out books are in a photo, and nothing is
+	// marked found until the user confirms the ticked ones.
+	let photoInput: HTMLInputElement;
+	let photoStatus: 'idle' | 'checking' | 'saving' = 'idle';
+	let review: { sure: Book[]; maybe: Book[] } | null = null;
+	let ticked = new Set<string>();
+	let photoMessage: string | null = null;
+
+	async function handlePhoto(event: Event) {
+		const input = event.target as HTMLInputElement;
+		const file = input.files?.[0];
+		input.value = ''; // so choosing the same photo again still triggers a change
+		if (!file) return;
+
+		photoStatus = 'checking';
+		error = null;
+		photoMessage = null;
+		try {
+			const matches = await booksApi.identifyInPhoto(await photoToJpegBase64(file));
+			const byId = new Map(books.map((book) => [book.id, book]));
+			const pick = (ids: string[]) =>
+				ids.map((id) => byId.get(id)).filter((book): book is Book => !!book);
+			review = { sure: pick(matches.sure), maybe: pick(matches.maybe) };
+			ticked = new Set(review.sure.map((book) => book.id));
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Could not check the photo';
+		} finally {
+			photoStatus = 'idle';
+		}
+	}
+
+	function toggleTicked(id: string) {
+		ticked = new Set(ticked);
+		if (!ticked.delete(id)) ticked.add(id);
+	}
+
+	async function confirmPhotoMatches() {
+		photoStatus = 'saving';
+		error = null;
+		try {
+			const updated = await booksApi.updateStates(
+				[...ticked].map((id) => ({ id, state: BookState.FOUND }))
+			);
+			const saved = new Map(updated.map((book) => [book.id, book]));
+			books = books
+				.map((book) => saved.get(book.id) ?? book)
+				.filter((book) => matchesFilter(book, selectedFilter));
+			const missed = ticked.size - saved.size;
+			photoMessage =
+				`Marked ${saved.size} found.` +
+				(missed ? ` ${missed} couldn't be saved; reload to check them.` : '');
+			review = null;
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Could not mark the books found';
+		} finally {
+			photoStatus = 'idle';
+		}
+	}
 
 	function query(filter: Filter) {
 		switch (filter) {
@@ -154,6 +214,8 @@
 				<select
 					bind:value={selectedFilter}
 					on:change={loadBooks}
+					disabled={photoStatus !== 'idle' || !!review}
+					title={review ? 'Finish or cancel the photo review first' : undefined}
 					class="mt-1 block w-40 rounded-md border-gray-300 py-2 pl-3 pr-10 text-base focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
 				>
 					{#each filters as filter (filter.value)}
@@ -183,9 +245,104 @@
 		</div>
 	{/if}
 
+	{#if selectedFilter === 'still_out' && !loading && !review && books.length > 0}
+		<div class="border-t border-gray-200 px-4 py-3 sm:px-6">
+			<input
+				bind:this={photoInput}
+				type="file"
+				accept="image/*"
+				class="hidden"
+				on:change={handlePhoto}
+			/>
+			<button
+				on:click={() => photoInput.click()}
+				disabled={photoStatus !== 'idle'}
+				class="w-full rounded-md border border-indigo-600 px-4 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-50 sm:w-auto"
+			>
+				{photoStatus === 'checking'
+					? 'Looking for your books… this takes a few seconds'
+					: 'Find books in a photo'}
+			</button>
+			{#if photoMessage}
+				<p class="mt-2 text-sm text-green-700">{photoMessage}</p>
+			{/if}
+		</div>
+	{/if}
+
 	{#if loading}
 		<div class="px-4 py-5 sm:px-6">
 			<p class="text-gray-500">Loading books...</p>
+		</div>
+	{:else if review}
+		<div class="border-t border-gray-200 bg-gray-100 p-3 sm:bg-white sm:p-6">
+			{#if review.sure.length + review.maybe.length === 0}
+				<h3 class="text-base font-medium text-gray-900">
+					None of your still-out books were spotted in that photo
+				</h3>
+				<p class="mt-1 text-sm text-gray-500">
+					Try a photo with the covers facing up, or tap Found on each book instead.
+				</p>
+			{:else}
+				<h3 class="text-base font-medium text-gray-900">Found in your photo</h3>
+				<p class="mt-1 text-sm text-gray-500">
+					Untick any that aren't really there, then mark the rest found.
+				</p>
+				{#each [{ heading: '', books: review.sure }, { heading: 'Not sure. Tick these if they are there', books: review.maybe }] as group (group.heading)}
+					{#if group.books.length}
+						{#if group.heading}
+							<h4 class="mt-4 text-sm font-medium text-gray-700">{group.heading}</h4>
+						{/if}
+						<ul class="mt-2 space-y-2">
+							{#each group.books as book (book.id)}
+								<li>
+									<label
+										class="grid cursor-pointer grid-cols-[auto_auto_1fr] items-center gap-3 rounded-lg border border-gray-300 bg-white p-3"
+									>
+										<input
+											type="checkbox"
+											checked={ticked.has(book.id)}
+											on:change={() => toggleTicked(book.id)}
+											class="h-6 w-6 flex-shrink-0 rounded border-gray-400 text-green-600"
+										/>
+										<img
+											src={getBookCoverUrl(book)}
+											alt=""
+											class="h-16 w-12 flex-shrink-0 rounded object-cover"
+											on:error={handleImageError}
+										/>
+										<span class="min-w-0">
+											<span class="block truncate text-sm font-medium text-indigo-600"
+												>{book.title}</span
+											>
+											{#if book.author}
+												<span class="block text-sm text-gray-700">{book.author}</span>
+											{/if}
+										</span>
+									</label>
+								</li>
+							{/each}
+						</ul>
+					{/if}
+				{/each}
+			{/if}
+			<div class="mt-4 flex gap-2">
+				{#if review.sure.length + review.maybe.length > 0}
+					<button
+						on:click={confirmPhotoMatches}
+						disabled={ticked.size === 0 || photoStatus !== 'idle'}
+						class="flex-1 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-700 disabled:opacity-50 sm:flex-none"
+					>
+						Mark {ticked.size} found
+					</button>
+				{/if}
+				<button
+					on:click={() => (review = null)}
+					disabled={photoStatus !== 'idle'}
+					class="flex-1 rounded-md bg-gray-200 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-300 sm:flex-none"
+				>
+					{review.sure.length + review.maybe.length > 0 ? 'Cancel' : 'Back to the list'}
+				</button>
+			</div>
 		</div>
 	{:else}
 		<!-- On phones each book is its own card, so its Found button clearly belongs to it -->

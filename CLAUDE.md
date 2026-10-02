@@ -2,6 +2,15 @@
 
 Tracks library books checked out across several library cards in one household ("have we found this book in the house yet?") and shows card barcodes at the library. Two apps in one repo, each with its own `package.json` and lockfile (Vercel builds each from its own directory). The root `package.json` only holds dev scripts that drive both.
 
+## How it's used (drives the UI)
+
+The main job is matching a physical pile of books against the "Still out" list on a phone, one book at a time: find the title in the pile, tap Found, move to the next. Whatever stays on the list is still somewhere in the house. So on the books page:
+
+- One book at a time matters more than density. Don't optimize for more books per screen. Each card is large on purpose: big cover to match against the physical book, then title and author, then a large Found button. The user prefers this layout over more compact ones (compared in screenshots, 2026-10).
+- Each book's Found button must be clearly part of that book's card.
+- Marking a book found must not reload the list or move the scroll position (a Playwright test covers this).
+- To mark many at once there's photo matching: on "Still out", the user photographs the pile, the server asks Gemini which still-out books are in it, and the user confirms a ticked list before anything is marked found. Never mark books found from a model's answer without that confirmation.
+
 ## Layout
 
 - `apps/backend` — Vercel serverless functions (`@vercel/node`), TypeORM + Postgres (Neon). Every `.ts` file under `api/` (subfolders included) becomes its own serverless function, and the Hobby plan allows at most 12 per deployment. So `api/` holds only endpoints; entities, helpers and the data source live in `lib/`, and Vercel bundles whatever an endpoint imports. Sub-paths are routed to an endpoint by `vercel.json` `routes`, and the handler switches on `req.method` and the URL path.
@@ -10,13 +19,14 @@ Tracks library books checked out across several library cards in one household (
   - `api/sync-books.ts` — daily Vercel cron (`0 0 * * *`, requires `CRON_SECRET`) that syncs every card in parallel via `lib/utils/book-sync.ts`. Books are matched to loans by BiblioCommons `checkoutId`; books the library no longer lists become `returned`. The matching rules live in `reconcileCheckouts` and are unit-tested.
   - `lib/utils/library-sync.ts` — BiblioCommons login + checkouts client (New Westminster only; `LibrarySystem` enum). It throws on an unexpected response, because an empty list would mark every book returned.
   - Book `state` is where the book is: `checked_out` (still out, not found), `found`, `returned`. Overdue is not a state; it's `dueDate` (a Postgres `date`, `'YYYY-MM-DD'`) before today in Vancouver (`lib/utils/dates.ts`). Never parse due dates with `new Date('YYYY-MM-DD')`: that's UTC midnight, the previous day locally.
+  - `lib/utils/photo-match.ts` — photo matching for `POST /books/identify`: sends the photo plus a numbered list of the user's still-out books to Gemini (`@google/genai`) and maps the answer (list numbers, "sure"/"maybe") back to book ids. Default model `gemini-3.5-flash-lite`, falling back to `gemini-3.8-flash` when busy (429/503); `GEMINI_MODEL` overrides. Uses the Gemini free tier, where Google may use uploads for training, so the UI never needs photos of people. `scripts/try-photo-match.ts` runs a real photo against a book list from the command line.
   - `lib/entities/` — TypeORM entities; `lib/ormconfig.ts` — the data source (also used by the migration scripts).
   - `scripts/sync-books-cli.ts` — fetch one card's checkouts from the real library: `npx ts-node scripts/sync-books-cli.ts <card> <pin> nwpl`.
   - `scripts/seed.ts` — sample cards and books for local users (`npm run seed`).
   - `openapi.yaml` — API spec the project started from; not generated, may drift from the handlers.
   - `examples/nwpl/` (gitignored) — captured BiblioCommons responses; contains real account data, never commit.
 - `apps/frontend` — SvelteKit (Svelte 5 runtime, but components are written in Svelte 4 syntax: `$:`, `on:click`, stores), Tailwind 3. All API calls go through `src/lib/api.ts`; shared types in `src/lib/types.ts`; due-date helpers in `src/lib/dates.ts`.
-  - `e2e/` — Playwright tests (desktop + Pixel 7). `e2e/fixtures.ts` signs in through Chrome's virtual authenticator and seeds data.
+  - `e2e/` — Playwright tests (desktop + Pixel 7). `e2e/fixtures.ts` signs in through Chrome's virtual authenticator and seeds data. Tests must never call Gemini: `e2e/photo-match.spec.ts` answers `/books/identify` itself with `page.route`.
 
 ## Deploy
 
@@ -24,7 +34,7 @@ Tracks library books checked out across several library cards in one household (
   - `libtrack-api` (root `apps/backend`) → https://libtrack-api.vercel.app — also owns the cron.
   - `libtrack` (root `apps/frontend`) → https://libtrack.vercel.app
 - Pushing to `main` deploys both to production. Other branches get preview deployments. No CI/tests gate the deploy.
-- Backend env vars are managed in Vercel: `DATABASE_URL`, `JWT_SECRET`, `CRON_SECRET`, `ALLOWED_ORIGIN`, `WEBAUTHN_RP_ID`, `NODE_ENV`. The frontend's `PUBLIC_API_BASE_URL` is set per environment and read via `$env/static/public`.
+- Backend env vars are managed in Vercel: `DATABASE_URL`, `JWT_SECRET`, `CRON_SECRET`, `ALLOWED_ORIGIN`, `WEBAUTHN_RP_ID`, `NODE_ENV`, `GEMINI_API_KEY` (production only, from Google AI Studio; without it photo matching returns 503). The frontend's `PUBLIC_API_BASE_URL` is set per environment and read via `$env/static/public`.
 - Both apps are linked through the root `.vercel/repo.json`; run `vercel` commands from the app directory.
 
 ## Database

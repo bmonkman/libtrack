@@ -4,8 +4,14 @@ A modern library management system built with SvelteKit, TypeScript, and Vercel 
 
 ## Project Overview
 
-LibTrack is a full-stack application for managing library books and library cards, specifically keeping track of which kids books have been found when looking around the house for many books that may have been checked out from multiple accounts. It will also show barcodes for your library cards for when you're at the library and forgot your card.
-It features a modern SvelteKit frontend with Tailwind CSS styling and a TypeScript backend using Vercel Serverless Functions.
+LibTrack keeps track of a household's library books when the kids have many books checked out across several library cards. It also shows your library card barcodes for when you're at the library without your card.
+It features a SvelteKit frontend with Tailwind CSS styling and a TypeScript backend using Vercel Serverless Functions.
+
+### How it's used
+
+You gather the library books you can find into a pile. Then, phone in hand, you go down the "Still out" list one book at a time. For each title you check the pile: if the book is there, tap **Found** and it drops off the list. Whatever is left on "Still out" when you're done is what's still somewhere in the house, usually in a kid's room. The daily sync keeps the list current: new loans appear, and returned books leave by themselves.
+
+To mark many at once, tap **Find books in a photo** and photograph the pile with the covers showing. The app suggests which of your still-out books are in the photo; untick any it got wrong and confirm, and they're all marked found together.
 
 ### Key Features
 

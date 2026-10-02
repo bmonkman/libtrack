@@ -12,8 +12,13 @@ test('@screenshots signed-in pages', async ({ page, seededUser: _ }, testInfo) =
 	for (const { path, ready } of PAGES) {
 		await page.goto(path);
 		await expect(page.locator(ready).first()).toBeVisible();
-		// Let cover images and barcodes finish drawing
-		await page.waitForLoadState('networkidle');
+		// Let cover images finish loading. Not 'networkidle': a slow third-party cover server can
+		// hold that off past the test timeout. A cover that's still loading after 15s is shot as is.
+		await page
+			.waitForFunction(() => [...document.images].every((img) => img.complete), null, {
+				timeout: 15_000
+			})
+			.catch(() => {});
 		await page.screenshot({
 			path: `screenshots/${testInfo.project.name}${path.replace(/\//g, '-')}.png`,
 			fullPage: true
