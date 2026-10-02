@@ -19,7 +19,7 @@ npm run setup                   # installs both apps, starts Postgres, runs migr
 npx --prefix apps/frontend playwright install chromium
 ```
 
-Env files: copy `apps/backend/.env.example` to `apps/backend/.env` (set a JWT_SECRET) and
+Env files: copy `apps/backend/.env.example` to `apps/backend/.env` and
 `apps/frontend/.env.example` to `apps/frontend/.env.local` if they don't exist.
 
 ## Run the app

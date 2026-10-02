@@ -1,49 +1,72 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import * as jwt from 'jsonwebtoken';
+import { createHash, randomBytes } from 'node:crypto';
+import { LessThan, LessThanOrEqual } from 'typeorm';
+import { AppDataSource } from '../ormconfig';
+import { Session } from '../entities/Session';
 
-const JWT_EXPIRATION = '72h';
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// A session ends after this long without being used. Each use pushes the end date out again.
+export const SESSION_IDLE_LIMIT_MS = 90 * DAY_MS;
+
+// Pushing the end date out is a database write, so do it at most this often per session
+const SESSION_EXTEND_EVERY_MS = 60 * 60 * 1000;
 
 export interface AuthUser {
   id: string;
   name: string;
+  sessionId: string;
 }
 
-export interface JwtPayload {
-  user: AuthUser;
-}
+const hashToken = (token: string): string => createHash('sha256').update(token).digest('hex');
 
-// Read at call time rather than module load so a missing secret fails the request loudly instead
-// of silently signing tokens with a guessable default.
-const getJwtSecret = (): string => {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) {
-    throw new Error('JWT_SECRET is not set');
-  }
-  return secret;
-};
+export const sessionNeedsExtending = (lastUsedAt: Date, now: Date): boolean =>
+  now.getTime() - lastUsedAt.getTime() >= SESSION_EXTEND_EVERY_MS;
 
-export const generateToken = (user: AuthUser): string => {
-  return jwt.sign({ user: { id: user.id, name: user.name } }, getJwtSecret(), {
-    expiresIn: JWT_EXPIRATION,
+// Starts a session and returns the token the browser sends as `Authorization: Bearer`
+export const createSession = async (userId: string): Promise<string> => {
+  const repository = AppDataSource.getRepository(Session);
+  const now = new Date();
+  await repository.delete({ expiresAt: LessThan(now) });
+
+  const token = randomBytes(32).toString('base64url');
+  await repository.insert({
+    tokenHash: hashToken(token),
+    userId,
+    lastUsedAt: now,
+    expiresAt: new Date(now.getTime() + SESSION_IDLE_LIMIT_MS),
   });
+  return token;
 };
 
-export const verifyToken = (token: string): JwtPayload | null => {
-  try {
-    return jwt.verify(token, getJwtSecret()) as JwtPayload;
-  } catch (error) {
-    return null;
-  }
-};
-
-export const getAuthUser = async (req: VercelRequest): Promise<AuthUser | null> => {
+const getAuthUser = async (req: VercelRequest): Promise<AuthUser | null> => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return null;
   }
 
-  const payload = verifyToken(authHeader.split(' ')[1]);
-  return payload?.user ?? null;
+  const repository = AppDataSource.getRepository(Session);
+  const session = await repository.findOne({
+    where: { tokenHash: hashToken(authHeader.slice('Bearer '.length)) },
+    relations: ['user'],
+  });
+  const now = new Date();
+  if (!session?.user || session.expiresAt <= now) {
+    return null;
+  }
+
+  // The lastUsedAt condition is rechecked under the row lock, so when a page fires several
+  // requests at once only the first one writes
+  if (sessionNeedsExtending(session.lastUsedAt, now)) {
+    await repository.update(
+      {
+        id: session.id,
+        lastUsedAt: LessThanOrEqual(new Date(now.getTime() - SESSION_EXTEND_EVERY_MS)),
+      },
+      { lastUsedAt: now, expiresAt: new Date(now.getTime() + SESSION_IDLE_LIMIT_MS) }
+    );
+  }
+  return { id: session.user.id, name: session.user.name, sessionId: session.id };
 };
 
 export const requireAuth = async (

@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import { Book } from './entities/Book';
 import { LibraryCard } from './entities/LibraryCard';
 import { PasskeyCredential } from './entities/PasskeyCredential';
+import { Session } from './entities/Session';
 import { User } from './entities/User';
 import { WebAuthnChallenge } from './entities/WebAuthnChallenge';
 
@@ -14,7 +15,7 @@ dotenv.config();
 export const AppDataSource = new DataSource({
   type: 'postgres',
   url: process.env.DATABASE_URL,
-  entities: [Book, LibraryCard, PasskeyCredential, User, WebAuthnChallenge],
+  entities: [Book, LibraryCard, PasskeyCredential, Session, User, WebAuthnChallenge],
   migrations: ['migrations/**/*.ts'],
   synchronize: false,
 });

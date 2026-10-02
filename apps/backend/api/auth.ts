@@ -11,22 +11,28 @@ import type {
   VerifiedRegistrationResponse,
 } from '@simplewebauthn/server';
 import { isoBase64URL } from '@simplewebauthn/server/helpers';
+import { Not } from 'typeorm';
 import { v4 as uuidv4, parse as uuidParse } from 'uuid';
 import { AppDataSource } from '../lib/ormconfig';
 import { User } from '../lib/entities/User';
 import { PasskeyCredential } from '../lib/entities/PasskeyCredential';
+import { Session } from '../lib/entities/Session';
 import { ChallengePurpose } from '../lib/entities/WebAuthnChallenge';
-import { generateToken, requireAuth } from '../lib/utils/auth';
+import { createSession, requireAuth } from '../lib/utils/auth';
 import { consumeChallenge, getRelyingParty, RP_NAME, saveChallenge } from '../lib/utils/webauthn';
 import { handleCors } from '../lib/utils/utils';
 
 const userRepository = AppDataSource.getRepository(User);
 const credentialRepository = AppDataSource.getRepository(PasskeyCredential);
+const sessionRepository = AppDataSource.getRepository(Session);
 
 // Only what the frontend needs; never the user's relations (library cards carry PINs)
 const toPublicUser = (user: User) => ({ id: user.id, name: user.name });
 
-const authResult = (user: User) => ({ user: toPublicUser(user), token: generateToken(user) });
+const authResult = async (user: User) => ({
+  user: toPublicUser(user),
+  token: await createSession(user.id),
+});
 
 async function verifyRegistration(
   response: RegistrationResponseJSON,
@@ -89,6 +95,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.json({ user: toPublicUser(user) });
       }
 
+      case 'POST logout': {
+        const authUser = await requireAuth(req, res);
+        if (!authUser) return;
+
+        await sessionRepository.delete({ id: authUser.sessionId });
+        return res.status(204).end();
+      }
+
+      // Signs out every device except the one making the request
+      case 'POST sign-out-others': {
+        const authUser = await requireAuth(req, res);
+        if (!authUser) return;
+
+        await sessionRepository.delete({ userId: authUser.id, id: Not(authUser.sessionId) });
+        return res.status(204).end();
+      }
+
       // Step 1 of creating a new account
       case 'POST registration-options': {
         const username = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
@@ -139,7 +162,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           await manager.save(newCredential(user.id, verification.registrationInfo));
         });
 
-        return res.status(201).json(authResult(user));
+        return res.status(201).json(await authResult(user));
       }
 
       case 'GET passkeys': {
@@ -312,7 +335,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           lastUsedAt: new Date(),
         });
 
-        return res.json(authResult(credential.user));
+        return res.json(await authResult(credential.user));
       }
 
       default:
