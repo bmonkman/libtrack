@@ -12,13 +12,13 @@ import type {
 } from '@simplewebauthn/server';
 import { isoBase64URL } from '@simplewebauthn/server/helpers';
 import { v4 as uuidv4, parse as uuidParse } from 'uuid';
-import { AppDataSource } from './ormconfig';
-import { User } from './entities/User';
-import { PasskeyCredential } from './entities/PasskeyCredential';
-import { ChallengePurpose } from './entities/WebAuthnChallenge';
-import { generateToken, requireAuth } from './utils/auth';
-import { consumeChallenge, getRelyingParty, RP_NAME, saveChallenge } from './utils/webauthn';
-import { handleCors } from './utils/utils';
+import { AppDataSource } from '../lib/ormconfig';
+import { User } from '../lib/entities/User';
+import { PasskeyCredential } from '../lib/entities/PasskeyCredential';
+import { ChallengePurpose } from '../lib/entities/WebAuthnChallenge';
+import { generateToken, requireAuth } from '../lib/utils/auth';
+import { consumeChallenge, getRelyingParty, RP_NAME, saveChallenge } from '../lib/utils/webauthn';
+import { handleCors } from '../lib/utils/utils';
 
 const userRepository = AppDataSource.getRepository(User);
 const credentialRepository = AppDataSource.getRepository(PasskeyCredential);

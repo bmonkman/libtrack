@@ -1,9 +1,9 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { AppDataSource } from './ormconfig';
-import { Book, BookState } from './entities/Book';
+import { AppDataSource } from '../lib/ormconfig';
+import { Book, BookState } from '../lib/entities/Book';
 import { In } from 'typeorm';
-import { handleCors } from './utils/utils';
-import { requireAuth } from './utils/auth';
+import { handleCors } from '../lib/utils/utils';
+import { requireAuth } from '../lib/utils/auth';
 
 const bookRepository = AppDataSource.getRepository(Book);
 

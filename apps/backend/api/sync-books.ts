@@ -1,8 +1,8 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { AppDataSource } from './ormconfig';
-import { Book, BookState } from './entities/Book';
-import { LibraryCard } from './entities/LibraryCard';
-import { getCheckedOutBooks } from './utils/library-sync';
+import { AppDataSource } from '../lib/ormconfig';
+import { Book, BookState } from '../lib/entities/Book';
+import { LibraryCard } from '../lib/entities/LibraryCard';
+import { getCheckedOutBooks } from '../lib/utils/library-sync';
 
 // This endpoint is designed to be called by a Vercel Cron Job
 export default async function handler(req: VercelRequest, res: VercelResponse) {

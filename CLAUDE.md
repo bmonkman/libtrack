@@ -4,12 +4,13 @@ Tracks library books checked out across several library cards in one household (
 
 ## Layout
 
-- `apps/backend` — Vercel serverless functions (`@vercel/node`), TypeORM + Postgres (Neon). Each file in `api/*.ts` is one function; sub-paths are routed to it by `vercel.json` `routes` and the handler switches on `req.method` and the last URL segment (`req.url.split('/').pop()`).
+- `apps/backend` — Vercel serverless functions (`@vercel/node`), TypeORM + Postgres (Neon). Every `.ts` file under `api/` (subfolders included) becomes its own serverless function, and the Hobby plan allows at most 12 per deployment. So `api/` holds only endpoints; entities, helpers and the data source live in `lib/`, and Vercel bundles whatever an endpoint imports. Sub-paths are routed to an endpoint by `vercel.json` `routes`, and the handler switches on `req.method` and the URL path.
   - `api/auth.ts` — passkey (WebAuthn) sign-up, sign-in and add-passkey via `@simplewebauthn/server`; challenges are stored in the `web_authn_challenge` table and deleted on use. Issues a JWT (72h) that the frontend keeps in `localStorage` and sends as `Authorization: Bearer`. The RP ID and expected origin come from `WEBAUTHN_RP_ID` and `ALLOWED_ORIGIN` (default `localhost` / `http://localhost:5173`). `JWT_SECRET` is required, including locally.
-  - `api/books.ts`, `api/library-cards.ts` — CRUD, scoped to the JWT user via `requireAuth` in `api/utils/auth.ts`.
+  - `api/books.ts`, `api/library-cards.ts` — CRUD, scoped to the JWT user via `requireAuth` in `lib/utils/auth.ts`.
   - `api/sync-books.ts` — daily Vercel cron (`0 0 * * *`) that logs into BiblioCommons per card and upserts checked-out books.
-  - `api/utils/library-sync.ts` — BiblioCommons scraping/gateway client (New Westminster only; `LibrarySystem` enum).
-  - `api/sync-books-cli.ts` — run the sync for one card locally: `npx ts-node api/sync-books-cli.ts <card> <pin> nwpl`.
+  - `lib/utils/library-sync.ts` — BiblioCommons scraping/gateway client (New Westminster only; `LibrarySystem` enum).
+  - `lib/entities/` — TypeORM entities; `lib/ormconfig.ts` — the data source (also used by the migration scripts).
+  - `scripts/sync-books-cli.ts` — run the sync for one card locally: `npx ts-node scripts/sync-books-cli.ts <card> <pin> nwpl`.
   - `openapi.yaml` — API spec the project started from; not generated, may drift from the handlers.
   - `examples/nwpl/` (gitignored) — captured BiblioCommons responses; contains real account data, never commit.
 - `apps/frontend` — SvelteKit (Svelte 5, `adapter-auto`), Tailwind 3. All API calls go through `src/lib/api.ts`; shared types in `src/lib/types.ts`.
