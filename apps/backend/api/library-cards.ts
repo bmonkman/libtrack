@@ -1,8 +1,8 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { AppDataSource } from './ormconfig';
-import { LibraryCard } from './entities/LibraryCard';
-import { handleCors } from './utils/utils';
-import { requireAuth } from './utils/auth';
+import { AppDataSource } from '../lib/ormconfig';
+import { LibraryCard } from '../lib/entities/LibraryCard';
+import { handleCors } from '../lib/utils/utils';
+import { requireAuth } from '../lib/utils/auth';
 
 const libraryCardRepository = AppDataSource.getRepository(LibraryCard);
 

@@ -37,7 +37,7 @@
 		await checkAuth();
 
 		// Redirect to login if accessing protected routes while not authenticated
-		const protectedRoutes = ['/books', '/library-cards'];
+		const protectedRoutes = ['/books', '/library-cards', '/account'];
 		const isProtectedRoute = protectedRoutes.some((route) => $page.url.pathname.startsWith(route));
 
 		if (isProtectedRoute && !$currentUser && !$isLoading) {
@@ -49,7 +49,7 @@
 	$: {
 		if ($page) {
 			// This reactive statement will re-run when page changes
-			const protectedRoutes = ['/books', '/library-cards'];
+			const protectedRoutes = ['/books', '/library-cards', '/account'];
 			const isProtectedRoute = protectedRoutes.some((route) =>
 				$page.url.pathname.startsWith(route)
 			);
@@ -58,12 +58,6 @@
 				goto('/');
 			}
 		}
-	}
-
-	function handleLogout() {
-		authApi.logout();
-		currentUser.set(null);
-		goto('/');
 	}
 </script>
 
@@ -90,10 +84,10 @@
 							class="inline-flex items-center rounded-md px-2 py-1 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-gray-900"
 							>Library Cards</a
 						>
-						<button
-							on:click={handleLogout}
-							class="inline-flex items-center rounded-md px-2 py-1 text-sm font-medium text-red-600 hover:bg-gray-50 hover:text-red-800"
-							>Logout</button
+						<a
+							href="/account"
+							class="inline-flex items-center rounded-md px-2 py-1 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+							>Account</a
 						>
 					{/if}
 				</div>

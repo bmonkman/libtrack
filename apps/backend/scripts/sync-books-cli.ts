@@ -1,4 +1,4 @@
-import { getCheckedOutBooks, BookData } from './utils/library-sync';
+import { getCheckedOutBooks, BookData } from '../lib/utils/library-sync';
 
 // Command line arguments
 const cardNumber = process.argv[2];

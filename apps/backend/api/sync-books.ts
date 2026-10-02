@@ -1,22 +1,17 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { AppDataSource } from './ormconfig';
-import { Book, BookState } from './entities/Book';
-import { LibraryCard } from './entities/LibraryCard';
-import { getCheckedOutBooks } from './utils/library-sync';
-import { handleCors } from './utils/utils';
+import { AppDataSource } from '../lib/ormconfig';
+import { Book, BookState } from '../lib/entities/Book';
+import { LibraryCard } from '../lib/entities/LibraryCard';
+import { getCheckedOutBooks } from '../lib/utils/library-sync';
 
 // This endpoint is designed to be called by a Vercel Cron Job
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (handleCors(req, res)) return;
-
-  // Security check: Only allow this endpoint to be triggered by Vercel Cron
-  //   const authHeader = req.headers.authorization;
-  //   const cronSecret = process.env.CRON_SECRET;
-
-  //   // Verify this is a legitimate cron request
-  //   if (!authHeader || authHeader !== `Bearer ${cronSecret}`) {
-  //     return res.status(401).json({ error: 'Unauthorized' });
-  //   }
+  // Vercel Cron sends CRON_SECRET as a bearer token. Without the check anyone could trigger a
+  // login to every stored library card.
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret || req.headers.authorization !== `Bearer ${cronSecret}`) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
 
   try {
     // Initialize the database connection if not already initialized

@@ -3,6 +3,7 @@
 	import { authApi, getStoredAuthToken } from '$lib/api';
 	import { onMount, getContext } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { startAuthentication, startRegistration } from '@simplewebauthn/browser';
 
 	// Authentication states
 	const AUTH_STATE = {
@@ -38,37 +39,9 @@
 		error = '';
 
 		try {
-			// Using WebAuthn API for passkey registration
-			// 1. Get registration options from server
-			const options = await authApi.getRegistrationOptions(userName);
-
-			// 2. Create credentials using browser's WebAuthn API
-			// Type assertion to handle compatibility between our custom types and the browser API
-			const credential = (await navigator.credentials.create({
-				publicKey: options as unknown as PublicKeyCredentialCreationOptions
-			})) as PublicKeyCredential;
-
-			// 3. Prepare credential for server
-			const credentialResponse = credential.response as AuthenticatorAttestationResponse;
-			const credentialData = {
-				id: credential.id,
-				rawId: btoa(String.fromCharCode(...new Uint8Array(credential.rawId))),
-				response: {
-					attestationObject: btoa(
-						String.fromCharCode(...new Uint8Array(credentialResponse.attestationObject))
-					),
-					clientDataJSON: btoa(
-						String.fromCharCode(...new Uint8Array(credentialResponse.clientDataJSON))
-					)
-				},
-				type: credential.type
-			};
-
-			// 4. Register the user with their credential
-			const user = await authApi.register({
-				name: userName,
-				credential: credentialData
-			});
+			const optionsJSON = await authApi.getRegistrationOptions(userName);
+			const response = await startRegistration({ optionsJSON });
+			const user = await authApi.register(response);
 
 			currentUser.set(user);
 			goto('/books');
@@ -84,40 +57,10 @@
 		error = '';
 
 		try {
-			// Using WebAuthn API for passkey login
-			// 1. Get login options from server
-			const options = await authApi.getLoginOptions();
+			const optionsJSON = await authApi.getLoginOptions();
+			const response = await startAuthentication({ optionsJSON });
+			const user = await authApi.login(response);
 
-			// 2. Get credentials using browser's WebAuthn API
-			// Type assertion to handle compatibility between our custom types and the browser API
-			const credential = (await navigator.credentials.get({
-				publicKey: options as unknown as PublicKeyCredentialRequestOptions
-			})) as PublicKeyCredential;
-
-			// 3. Prepare credential for server
-			const credentialResponse = credential.response as AuthenticatorAssertionResponse;
-			const loginData = {
-				credential: {
-					id: credential.id,
-					rawId: btoa(String.fromCharCode(...new Uint8Array(credential.rawId))),
-					response: {
-						authenticatorData: btoa(
-							String.fromCharCode(...new Uint8Array(credentialResponse.authenticatorData))
-						),
-						clientDataJSON: btoa(
-							String.fromCharCode(...new Uint8Array(credentialResponse.clientDataJSON))
-						),
-						signature: btoa(String.fromCharCode(...new Uint8Array(credentialResponse.signature))),
-						userHandle: credentialResponse.userHandle
-							? btoa(String.fromCharCode(...new Uint8Array(credentialResponse.userHandle)))
-							: null
-					},
-					type: credential.type
-				}
-			};
-
-			// 4. Verify the credential with the server
-			const user = await authApi.login(loginData);
 			currentUser.set(user);
 			goto('/books');
 		} catch (err) {
