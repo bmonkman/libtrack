@@ -28,9 +28,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     switch (req.method) {
       case 'GET': {
         // ?states=checked_out,found  and/or  ?overdue=true (not returned, due before today)
-        const states = String(req.query.states ?? '')
+        const requestedStates = String(req.query.states ?? '')
           .split(',')
-          .filter((state): state is BookState => isBookState(state));
+          .filter(Boolean);
+        if (!requestedStates.every(isBookState)) {
+          return res
+            .status(400)
+            .json({ error: `states must be from: ${Object.values(BookState)}` });
+        }
+        const states = requestedStates as BookState[];
         const overdueOnly = req.query.overdue === 'true';
 
         const books = await bookRepository.find({

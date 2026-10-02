@@ -375,6 +375,8 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Book'
+        '400':
+          description: states contains a value that isn't a BookState
         '401':
           description: Authentication required
 

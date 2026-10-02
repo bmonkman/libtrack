@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures';
+import { API_URL, expect, test } from './fixtures';
 
 // Sample data from apps/backend/scripts/seed.ts: 11 books still out, 5 found, 4 returned.
 // Due dates are relative to today.
@@ -14,6 +14,7 @@ test('shows books still out by default, with due dates on the right day', async 
 	await expect(page.locator('li')).toHaveCount(11);
 
 	const today = new Intl.DateTimeFormat('en-US', {
+		timeZone: 'America/Vancouver',
 		year: 'numeric',
 		month: 'short',
 		day: 'numeric'
@@ -73,4 +74,28 @@ test('marking a book found removes it in place without reloading or scrolling', 
 	await page.getByRole('combobox').first().selectOption('found');
 	await expect(bookRow(page, 'Frog and Toad Are Friends')).toBeVisible();
 	await expect(page.locator('li')).toHaveCount(6);
+});
+
+test('a failed state change leaves the saved state showing', async ({ page, seededUser: _ }) => {
+	await page.goto('/books');
+	const row = bookRow(page, 'Corduroy');
+	const select = row.getByRole('combobox');
+	await expect(select).toHaveValue('checked_out');
+
+	await page.route('**/books/states', (route) => route.fulfill({ status: 500, body: '{}' }));
+	await select.selectOption('found');
+
+	await expect(page.getByText(/API error|Internal/)).toBeVisible();
+	await expect(select).toHaveValue('checked_out');
+	await expect(row).toBeVisible();
+});
+
+test('the books API rejects unknown states instead of returning everything', async ({
+	request,
+	seededUser
+}) => {
+	const response = await request.get(`${API_URL}/books?states=checkd_out`, {
+		headers: { Authorization: `Bearer ${seededUser.token}` }
+	});
+	expect(response.status()).toBe(400);
 });

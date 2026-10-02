@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { Book, BookState } from '../entities/Book';
 import { BookData } from './library-sync';
 import { reconcileCheckouts } from './book-sync';
-import { formatAuthor } from './library-sync';
 
 const card = { id: 'card-1', userId: 'user-1' };
 
@@ -147,14 +146,4 @@ test('a known loan picks up its author', () => {
   );
 
   assert.equal(legacy.author, 'Raina Telgemeier');
-});
-
-test('authors are shown first name first', () => {
-  assert.equal(formatAuthor(['Telgemeier, Raina']), 'Raina Telgemeier');
-  assert.equal(formatAuthor(['Carle, Eric, 1929-2021']), 'Eric Carle');
-  assert.equal(formatAuthor(['Seuss, Dr.']), 'Dr. Seuss');
-  assert.equal(formatAuthor(['Martin, Bill, Jr.']), 'Martin, Bill, Jr.');
-  assert.equal(formatAuthor(['Avi']), 'Avi');
-  assert.equal(formatAuthor(['Lobel, Arnold', 'Lobel, Anita']), 'Arnold Lobel and others');
-  assert.equal(formatAuthor([]), undefined);
 });

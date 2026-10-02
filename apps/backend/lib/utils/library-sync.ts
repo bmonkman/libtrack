@@ -22,6 +22,37 @@ export function formatAuthor(authors?: string[]): string | undefined {
   return authors.length > 1 ? `${name} and others` : name;
 }
 
+// One page of the gateway's checkouts response. The caller marks any book missing from the
+// result as returned, so anything that doesn't add up throws rather than reading as "no
+// checkouts". borrowing.checkouts.items lists the page's checkout IDs; each must have its
+// details in entities.checkouts. Zero checkouts is an empty items list with count 0.
+export function parseCheckoutsPage(data: any): { books: BookData[]; pages: number; total: number } {
+  const listing = data?.borrowing?.checkouts;
+  if (!Array.isArray(listing?.items) || typeof listing?.pagination?.count !== 'number') {
+    throw new Error('Unexpected checkouts response shape');
+  }
+
+  const bibs = data.entities?.bibs ?? {};
+  const details = data.entities?.checkouts ?? {};
+  const books = listing.items.map((checkoutId: string): BookData => {
+    const checkout = details[checkoutId];
+    if (!checkout) {
+      throw new Error(`Checkout ${checkoutId} is listed without details`);
+    }
+    const info = bibs[checkout.metadataId]?.briefInfo;
+    return {
+      checkoutId: String(checkout.checkoutId),
+      title: info ? info.title + (info.subtitle ? ': ' + info.subtitle : '') : checkout.bibTitle,
+      author: formatAuthor(info?.authors),
+      isbn: info?.isbns?.length > 0 ? info.isbns[0] : undefined,
+      dueDate: checkout.dueDate,
+      coverImage: info?.jacket?.medium || info?.jacket?.large || info?.jacket?.small,
+    };
+  });
+
+  return { books, pages: listing.pagination.pages ?? 1, total: listing.pagination.count };
+}
+
 /**
  * Fetch checked out books from a library system using card number and PIN
  */
@@ -160,9 +191,9 @@ export async function getNWPLBooks(cardNumber: string, pin: string): Promise<Boo
       Priority: 'u=0',
     };
 
-    // Step 4: Fetch checked out books, page by page. The caller marks anything missing from this
-    // list as returned, so an unexpected response must throw rather than look like an empty list.
+    // Step 4: Fetch checked out books, page by page
     const books: BookData[] = [];
+    let total = 0;
     for (let page = 1, pages = 1; page <= pages; page++) {
       const { data } = await axios.get(
         `https://gateway.bibliocommons.com/v2/libraries/newwestminster/checkouts?accountId=${accountId}&size=100&status=OUT&page=${page}&sort=status&materialType=&locale=en-CA`,
@@ -171,27 +202,13 @@ export async function getNWPLBooks(cardNumber: string, pin: string): Promise<Boo
           headers,
         }
       );
-
-      if (!data?.entities || !data.borrowing?.checkouts?.pagination) {
-        throw new Error('Unexpected checkouts response shape');
-      }
-      pages = data.borrowing.checkouts.pagination.pages;
-
-      const bibs = data.entities.bibs ?? {};
-      const checkouts = data.entities.checkouts ?? {};
-      for (const checkout of Object.values<any>(checkouts)) {
-        const info = bibs[checkout.metadataId]?.briefInfo;
-        books.push({
-          checkoutId: String(checkout.checkoutId),
-          title: info
-            ? info.title + (info.subtitle ? ': ' + info.subtitle : '')
-            : checkout.bibTitle,
-          author: formatAuthor(info?.authors),
-          isbn: info?.isbns?.length > 0 ? info.isbns[0] : undefined,
-          dueDate: checkout.dueDate,
-          coverImage: info?.jacket?.medium || info?.jacket?.large || info?.jacket?.small,
-        });
-      }
+      const parsed = parseCheckoutsPage(data);
+      books.push(...parsed.books);
+      pages = parsed.pages;
+      total = parsed.total;
+    }
+    if (books.length !== total) {
+      throw new Error(`Checkouts count mismatch: got ${books.length}, expected ${total}`);
     }
 
     return books;

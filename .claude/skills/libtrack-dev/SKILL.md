@@ -7,8 +7,9 @@ description: Run LibTrack locally, sign in without a human, seed sample data, ru
 
 Everything runs against a local Postgres in Docker. Never point local dev at production:
 `apps/backend/.env` must have the local `DATABASE_URL` from `apps/backend/.env.example`.
-Check that before starting anything (`grep DATABASE_URL apps/backend/.env` should show
-`localhost:54329`). If it shows a neon.tech host, stop and ask the user.
+Check that before starting anything, without printing the URL (it holds the password):
+`grep -q '^DATABASE_URL=.*localhost:54329' apps/backend/.env && echo local || echo NOT LOCAL`.
+If it says NOT LOCAL, stop and ask the user.
 
 ## One-time setup
 

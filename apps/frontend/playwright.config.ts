@@ -13,7 +13,12 @@ export default defineConfig({
 	timeout: 60_000,
 	// WebAuthn's expected origin is ALLOWED_ORIGIN in apps/backend/.env, so the frontend must be
 	// served on exactly this origin.
-	use: { baseURL: 'http://localhost:5173', trace: 'retain-on-failure' },
+	// Vancouver time zone so "today" matches the app's and the seed data's on any machine
+	use: {
+		baseURL: 'http://localhost:5173',
+		timezoneId: 'America/Vancouver',
+		trace: 'retain-on-failure'
+	},
 	projects: [
 		{ name: 'desktop', use: { ...devices['Desktop Chrome'] } },
 		{ name: 'mobile', use: { ...devices['Pixel 7'] } }

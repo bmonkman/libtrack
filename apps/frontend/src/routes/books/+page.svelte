@@ -117,8 +117,11 @@
 		pendingIds = new Set(pendingIds).add(book.id);
 		error = null;
 		try {
-			await booksApi.updateStates([{ id: book.id, state: newState }]);
-			const updated = { ...book, state: newState };
+			const [updated] = await booksApi.updateStates([{ id: book.id, state: newState }]);
+			// The API skips ids it can't find (e.g. deleted elsewhere), so no result means no save
+			if (!updated) {
+				throw new Error('That book no longer exists. Reload the page to refresh the list.');
+			}
 			books = matchesFilter(updated, selectedFilter)
 				? books.map((b) => (b.id === book.id ? updated : b))
 				: books.filter((b) => b.id !== book.id);
@@ -252,8 +255,12 @@
 									value={book.state}
 									disabled={pendingIds.has(book.id)}
 									on:change={(e) => {
+										// Put the control back until the save succeeds; the list update then
+										// selects the new state, and a failed save leaves the real one showing
 										const target = e.target as HTMLSelectElement;
-										updateBookState(book, target.value as BookState);
+										const newState = target.value as BookState;
+										target.value = book.state;
+										updateBookState(book, newState);
 									}}
 									class="block w-full rounded-md border-gray-300 px-3 py-1 text-base focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
 								>

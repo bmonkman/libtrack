@@ -6,9 +6,18 @@ export function parseDueDate(dueDate: string): Date {
 	return new Date(year, month - 1, day);
 }
 
+// "Today" is Vancouver's day, matching the API's overdue filter, wherever the browser is.
+// Make this per library system if a library elsewhere is added.
+const LIBRARY_TIME_ZONE = 'America/Vancouver';
+
+// en-CA formats dates as YYYY-MM-DD
 export function todayString(now: Date = new Date()): string {
-	const pad = (n: number) => String(n).padStart(2, '0');
-	return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+	return new Intl.DateTimeFormat('en-CA', {
+		timeZone: LIBRARY_TIME_ZONE,
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit'
+	}).format(now);
 }
 
 // Overdue from the day after the due date. 'YYYY-MM-DD' strings compare correctly as text.
