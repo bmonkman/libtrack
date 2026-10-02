@@ -26,6 +26,14 @@ export class LibraryCard {
   })
   system!: LibrarySystem;
 
+  // What the library says the card owes: charges minus credits, from the last successful sync.
+  // Null until a sync has read it.
+  @Column({ type: 'integer', nullable: true })
+  balanceCents?: number | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  balanceUpdatedAt?: Date | null;
+
   @Column({ nullable: true })
   userId?: string;
 

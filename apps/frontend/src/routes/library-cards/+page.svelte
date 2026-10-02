@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { formatDollars } from '$lib/money';
 	import { onMount } from 'svelte';
 	import { libraryCardsApi } from '$lib/api';
 	import type { LibraryCard } from '$lib/types';
@@ -192,13 +193,26 @@
 	{:else}
 		<div class="border-t border-gray-200">
 			<ul class="divide-y divide-gray-200">
-				{#each cards as card}
+				{#each cards as card (card.id)}
 					<li class="px-4 py-4 sm:px-6">
 						<div class="flex items-center justify-between">
 							<div class="min-w-0 flex-1">
 								<p class="truncate text-sm font-medium text-indigo-600">{card.displayName}</p>
 								<p class="text-sm text-gray-500">System: {card.system}</p>
 								<p class="text-sm text-gray-500">Card #{card.number}</p>
+								{#if card.balanceCents != null}
+									<p
+										class="text-sm font-medium {card.balanceCents > 0
+											? 'text-amber-800'
+											: 'text-gray-500'}"
+									>
+										{card.balanceCents > 0
+											? `Owes ${formatDollars(card.balanceCents)}`
+											: card.balanceCents < 0
+												? `In credit ${formatDollars(-card.balanceCents)}`
+												: 'No fines'}
+									</p>
+								{/if}
 							</div>
 							<div class="flex items-center space-x-4">
 								<canvas id="barcode-{card.id}" class="h-16 w-auto"></canvas>

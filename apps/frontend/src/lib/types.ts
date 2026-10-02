@@ -17,6 +17,8 @@ export interface Book {
 	pictureUrl?: string;
 	state: BookState;
 	dueDate?: string; // 'YYYY-MM-DD'
+	// Set while the library charges for this book as lost; the book is still in the house
+	lostChargeCents?: number | null;
 	libraryCardId?: string;
 }
 
@@ -26,6 +28,9 @@ export interface LibraryCard {
 	pin: string;
 	displayName: string;
 	system: LibrarySystem;
+	// From the last sync: charges minus credits. Null until a sync has read it.
+	balanceCents?: number | null;
+	balanceUpdatedAt?: string | null;
 }
 
 export interface User {

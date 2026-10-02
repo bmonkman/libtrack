@@ -1,8 +1,8 @@
-import axios from 'axios';
 import * as cheerio from 'cheerio';
 
 export interface BookData {
   checkoutId: string;
+  metadataId?: string; // the library's id for the title (bib), shared by every copy
   title: string;
   author?: string;
   isbn?: string;
@@ -42,6 +42,7 @@ export function parseCheckoutsPage(data: any): { books: BookData[]; pages: numbe
     const info = bibs[checkout.metadataId]?.briefInfo;
     return {
       checkoutId: String(checkout.checkoutId),
+      metadataId: checkout.metadataId ?? undefined,
       title: info ? info.title + (info.subtitle ? ': ' + info.subtitle : '') : checkout.bibTitle,
       author: formatAuthor(info?.authors),
       isbn: info?.isbns?.length > 0 ? info.isbns[0] : undefined,
@@ -53,170 +54,273 @@ export function parseCheckoutsPage(data: any): { books: BookData[]; pages: numbe
   return { books, pages: listing.pagination.pages ?? 1, total: listing.pagination.count };
 }
 
+// One charge or credit on a card. Credits have negative amounts.
+export interface LibraryFine {
+  fineId: string;
+  amountCents: number;
+  status: string; // e.g. 'UNPAID', 'CREDIT'
+  description: string; // e.g. 'Lost', 'Credit'
+  metadataId?: string;
+  title?: string; // 'Title: Subtitle', the same shape as BookData.title
+}
+
+// One page of the gateway's fines response. Same rule as checkouts: anything that doesn't add up
+// throws, because a missing lost charge would let the sync mark that book returned.
+export function parseFinesPage(data: any): {
+  fines: LibraryFine[];
+  totalPages: number;
+  total: number;
+} {
+  const listing = data?.borrowing?.fines;
+  if (!Array.isArray(listing?.results) || typeof listing?.pagination?.totalElements !== 'number') {
+    throw new Error('Unexpected fines response shape');
+  }
+
+  const details = data.entities?.fines ?? {};
+  const fines = listing.results.map((fineId: string): LibraryFine => {
+    const fine = details[fineId];
+    // status and description decide whether a fine is a lost charge, so they're required too
+    if (
+      !fine ||
+      typeof fine.amount !== 'number' ||
+      typeof fine.status !== 'string' ||
+      typeof fine.description !== 'string'
+    ) {
+      throw new Error(`Fine ${fineId} is listed without details`);
+    }
+    return {
+      fineId: String(fineId),
+      amountCents: Math.round(fine.amount * 100),
+      status: fine.status,
+      description: fine.description,
+      metadataId: fine.metadataId ?? undefined,
+      title: fine.bibTitle
+        ? fine.bibTitle + (fine.bibSubtitle ? ': ' + fine.bibSubtitle : '')
+        : undefined,
+    };
+  });
+
+  return {
+    fines,
+    totalPages: listing.pagination.totalPages ?? 1,
+    total: listing.pagination.totalElements,
+  };
+}
+
+export interface LibraryAccount {
+  checkouts: BookData[];
+  fines: LibraryFine[];
+}
+
 /**
- * Fetch checked out books from a library system using card number and PIN
+ * Fetch a card's current checkouts and fines from its library system
  */
-export async function getCheckedOutBooks(
+export async function getLibraryAccount(
   cardNumber: string,
   pin: string,
   librarySystem: string
-): Promise<BookData[]> {
+): Promise<LibraryAccount> {
   if (librarySystem === 'nwpl') {
-    return getNWPLBooks(cardNumber, pin);
+    return getNWPLAccount(cardNumber, pin);
   }
 
   // Add support for other library systems here
   throw new Error(`Unsupported library system: ${librarySystem}`);
 }
 
-/**
- * Fetch checked out books from the New Westminster Public Library system
- */
-export async function getNWPLBooks(cardNumber: string, pin: string): Promise<BookData[]> {
-  try {
-    // Step 1: Fetch the login page to get the CSRF token
-    const loginPageResponse = await axios.get(
-      'https://newwestminster.bibliocommons.com/user/login',
-      {
-        withCredentials: true,
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:138.0) Gecko/20100101 Firefox/138.0',
-          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.5',
-          'Accept-Encoding': 'gzip, deflate, br',
-          Connection: 'keep-alive',
-          Referer: 'https://newwestminster.bibliocommons.com/',
-        },
-      }
-    );
+const NWPL_SITE = 'https://newwestminster.bibliocommons.com';
+const NWPL_GATEWAY = 'https://gateway.bibliocommons.com/v2/libraries/newwestminster';
+const USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:138.0) Gecko/20100101 Firefox/138.0';
 
-    // Extract CSRF token from the page
-    const $ = cheerio.load(loginPageResponse.data);
-    const csrfToken = $('meta[name="csrf-token"]').attr('content');
+// Requests use Node's built-in fetch, not axios: as of October 2026 the library's load balancer
+// answers 403 to connections made through Node's https module (what axios uses), while fetch,
+// curl and browsers get through. Probably why synced books stopped arriving after August 2026.
+
+// A logged-in BiblioCommons session: the headers every gateway call needs, and the account
+// they act on
+export interface LibrarySession {
+  accountId: string;
+  headers: Record<string, string>;
+}
+
+class LibraryHttpError extends Error {
+  constructor(
+    readonly status: number,
+    method: string,
+    url: string
+  ) {
+    // Path only: query strings can carry the account id
+    super(`${status} ${method} ${url.split('?')[0]}`);
+  }
+}
+
+async function request(url: string, init: RequestInit = {}): Promise<Response> {
+  const response = await fetch(url, init);
+  const redirect = response.status >= 300 && response.status < 400;
+  if (!response.ok && !redirect) {
+    throw new LibraryHttpError(response.status, init.method ?? 'GET', url);
+  }
+  return response;
+}
+
+// Errors carry only a status and a path; nothing from the login request (the PIN) leaks out
+async function withSafeErrors<T>(action: string, run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    const detail =
+      error instanceof LibraryHttpError || !(error instanceof TypeError)
+        ? String(error instanceof Error ? error.message : error)
+        : `no response (${error.message})`;
+    throw new Error(`${action}: ${detail}`);
+  }
+}
+
+// Adds the name=value pairs from a response's Set-Cookie headers to the jar (later ones win)
+function storeCookies(response: Response, jar: Map<string, string>): Map<string, string> {
+  for (const cookie of response.headers.getSetCookie()) {
+    const pair = cookie.split(';')[0];
+    const split = pair.indexOf('=');
+    if (split > 0) jar.set(pair.slice(0, split).trim(), pair.slice(split + 1).trim());
+  }
+  return jar;
+}
+
+const cookieHeader = (jar: Map<string, string>, names?: string[]) =>
+  [...jar]
+    .filter(([name]) => !names || names.includes(name))
+    .map(([name, value]) => `${name}=${value}`)
+    .join('; ');
+
+/**
+ * Log in to the New Westminster Public Library with a card number and PIN
+ */
+export async function loginToNWPL(cardNumber: string, pin: string): Promise<LibrarySession> {
+  return withSafeErrors('Failed to log in to NWPL', async () => {
+    // Step 1: the login page sets the first cookies and holds the CSRF token. This is the URL
+    // /user/login redirects to, so no redirect (and no lost cookies) is involved.
+    const loginPage = await request(`${NWPL_SITE}/user/login?destination=%2Fuser_dashboard`, {
+      headers: {
+        'User-Agent': USER_AGENT,
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+      },
+    });
+    const jar = storeCookies(loginPage, new Map());
+    const csrfToken = cheerio
+      .load(await loginPage.text())('meta[name="csrf-token"]')
+      .attr('content');
     if (!csrfToken) {
       throw new Error('CSRF token not found');
     }
 
-    // Get all cookies from the login page response
-    const cookies = loginPageResponse.headers['set-cookie'] || [];
-    const cookieString = cookies.join('; ');
-
-    // Step 2: Submit login form with credentials
-    const loginResponse = await axios.post(
-      'https://newwestminster.bibliocommons.com/user/login?destination=user_dashboard',
-      {
+    // Step 2: submit the card number and PIN. redirect: 'manual' keeps the session cookies set
+    // on this response, which following a redirect would drop.
+    const loginResponse = await request(`${NWPL_SITE}/user/login?destination=user_dashboard`, {
+      method: 'POST',
+      redirect: 'manual',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-CSRF-Token': csrfToken,
+        'X-Requested-With': 'XMLHttpRequest',
+        Cookie: cookieHeader(jar),
+        Referer: `${NWPL_SITE}/user/login`,
+        Accept: 'application/json, text/javascript, */*; q=0.01',
+        'User-Agent': USER_AGENT,
+      },
+      body: new URLSearchParams({
         utf8: '✓',
         authenticity_token: csrfToken,
         name: cardNumber,
         user_pin: pin,
         local: 'false',
-      },
-      {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'X-CSRF-Token': csrfToken,
-          'X-Requested-With': 'XMLHttpRequest',
-          Cookie: cookieString,
-          Referer: 'https://newwestminster.bibliocommons.com/user/login',
-          Accept: 'application/json, text/javascript, */*; q=0.01',
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:138.0) Gecko/20100101 Firefox/138.0',
-        },
-      }
-    );
-
-    // Extract session cookies
-    const sessionCookies = loginResponse.headers['set-cookie'] || [];
-    let sessionCookieString = sessionCookies.join('; ');
-
-    // Remove 'Cookie: ' prefix if it exists
-    if (sessionCookieString.startsWith('Cookie: ')) {
-      sessionCookieString = sessionCookieString.substring(8);
-    }
-
-    // Filter to only include allowed cookies
-    const allowedCookies = [
-      '_live_bcui_session_id',
-      'NERF_SRV',
-      'branch',
-      'session_id',
-      'bc_access_token',
-    ];
-    const cookiePairs = sessionCookieString.split('; ').map((cookie) => cookie.split(';')[0]);
-    const filteredCookies = cookiePairs.filter((cookie) => {
-      const cookieName = cookie.split('=')[0].trim();
-      return allowedCookies.includes(cookieName);
+      }),
     });
-    sessionCookieString = filteredCookies.join('; ');
+    storeCookies(loginResponse, jar);
 
-    // Extract session ID and access token from cookies
-    const sessionIdMatch = sessionCookieString.match(/(?:^|;\s*)session_id=([^;]*)/);
-    const accessTokenMatch = sessionCookieString.match(/(?:^|;\s*)bc_access_token=([^;]*)/);
-    if (!sessionIdMatch || !accessTokenMatch) {
-      throw new Error('Failed to extract session tokens');
+    const sessionId = jar.get('session_id');
+    const accessToken = jar.get('bc_access_token');
+    if (!sessionId || !accessToken) {
+      throw new Error('No session after login (wrong card number or PIN?)');
     }
 
-    let sessionId = sessionIdMatch[1];
-    let accessToken = accessTokenMatch[1];
-
-    // The account ID is normally in the response or can be extracted from the session ID
-    // For this example, we'll extract it from the session ID which often has format: "session_id-accountId"
-    let accountId = sessionId.split('-').pop() || '';
-    if (!accountId) {
+    // The gateway account id is the number at the end of session_id, plus one. Every open-source
+    // BiblioCommons client does the same; BiblioCommons doesn't document it.
+    const sessionNumber = parseInt(sessionId.split('-').pop() ?? '', 10);
+    if (Number.isNaN(sessionNumber)) {
       throw new Error('Failed to extract account ID from session ID');
     }
-    // Convert to number and add 1
-    accountId = (parseInt(accountId) + 1).toString();
+    const accountId = String(sessionNumber + 1);
 
     const headers = {
-      Referer: 'https://newwestminster.bibliocommons.com/',
-      Origin: 'https://newwestminster.bibliocommons.com',
-      'Sec-GPC': '1',
-      Connection: 'keep-alive',
-      'Sec-Fetch-Dest': 'empty',
-      'Sec-Fetch-Mode': 'cors',
-      'Sec-Fetch-Site': 'same-site',
-      TE: 'trailers',
-      Cookie: sessionCookieString,
+      Referer: `${NWPL_SITE}/`,
+      Origin: NWPL_SITE,
+      Cookie: cookieHeader(jar, [
+        '_live_bcui_session_id',
+        'NERF_SRV',
+        'branch',
+        'session_id',
+        'bc_access_token',
+      ]),
       'X-Session-Id': sessionId,
       'X-Access-Token': accessToken,
-      'User-Agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:138.0) Gecko/20100101 Firefox/138.0',
+      'User-Agent': USER_AGENT,
       Accept: 'application/json',
       'Accept-Language': 'en-CA,en-US;q=0.7,en;q=0.3',
-      'Accept-Encoding': 'gzip, deflate, br, zstd',
-      Pragma: 'no-cache',
-      'Cache-Control': 'no-cache',
-      Priority: 'u=0',
     };
 
-    // Step 4: Fetch checked out books, page by page
-    const books: BookData[] = [];
-    let total = 0;
-    for (let page = 1, pages = 1; page <= pages; page++) {
-      const { data } = await axios.get(
-        `https://gateway.bibliocommons.com/v2/libraries/newwestminster/checkouts?accountId=${accountId}&size=100&status=OUT&page=${page}&sort=status&materialType=&locale=en-CA`,
-        {
-          withCredentials: true,
-          headers,
-        }
-      );
-      const parsed = parseCheckoutsPage(data);
-      books.push(...parsed.books);
-      pages = parsed.pages;
-      total = parsed.total;
-    }
-    if (books.length !== total) {
-      throw new Error(`Checkouts count mismatch: got ${books.length}, expected ${total}`);
-    }
+    return { accountId, headers };
+  });
+}
 
-    return books;
-  } catch (error) {
-    // Never log the raw axios error: its config holds the login request body, PIN included
-    const detail = axios.isAxiosError(error)
-      ? `${error.response?.status ?? 'no response'} ${error.config?.method?.toUpperCase()} ${error.config?.url?.split('?')[0]}`
-      : String(error);
-    throw new Error(`Failed to fetch books from NWPL: ${detail}`);
+async function fetchNWPLCheckouts(session: LibrarySession): Promise<BookData[]> {
+  const books: BookData[] = [];
+  let total = 0;
+  for (let page = 1, pages = 1; page <= pages; page++) {
+    const response = await request(
+      `${NWPL_GATEWAY}/checkouts?accountId=${session.accountId}&size=100&status=OUT&page=${page}&sort=status&materialType=&locale=en-CA`,
+      { headers: session.headers }
+    );
+    const parsed = parseCheckoutsPage(await response.json());
+    books.push(...parsed.books);
+    pages = parsed.pages;
+    total = parsed.total;
   }
+  if (books.length !== total) {
+    throw new Error(`Checkouts count mismatch: got ${books.length}, expected ${total}`);
+  }
+
+  return books;
+}
+
+// Pages are numbered from 1 in the request (the response counts from 0)
+async function fetchNWPLFines(session: LibrarySession): Promise<LibraryFine[]> {
+  const fines: LibraryFine[] = [];
+  let total = 0;
+  for (let page = 1, pages = 1; page <= pages; page++) {
+    const response = await request(
+      `${NWPL_GATEWAY}/fines?accountId=${session.accountId}&size=100&page=${page}&locale=en-CA`,
+      { headers: session.headers }
+    );
+    const parsed = parseFinesPage(await response.json());
+    fines.push(...parsed.fines);
+    pages = parsed.totalPages;
+    total = parsed.total;
+  }
+  if (fines.length !== total) {
+    throw new Error(`Fines count mismatch: got ${fines.length}, expected ${total}`);
+  }
+  return fines;
+}
+
+/**
+ * Fetch a New Westminster Public Library card's checkouts and fines with one login
+ */
+export async function getNWPLAccount(cardNumber: string, pin: string): Promise<LibraryAccount> {
+  const session = await loginToNWPL(cardNumber, pin);
+  return withSafeErrors('Failed to fetch account from NWPL', async () => ({
+    checkouts: await fetchNWPLCheckouts(session),
+    fines: await fetchNWPLFines(session),
+  }));
 }
