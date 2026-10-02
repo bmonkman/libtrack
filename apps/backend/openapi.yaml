@@ -468,7 +468,7 @@ paths:
               properties:
                 image:
                   type: string
-                  description: Base64 image, at most 4 MB decoded
+                  description: Base64 image, at most 3 MB decoded (Vercel caps the whole request at 4.5 MB)
                 mimeType:
                   type: string
                   enum: [image/jpeg, image/png, image/webp, image/heic, image/heif]

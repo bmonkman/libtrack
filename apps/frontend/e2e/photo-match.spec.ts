@@ -43,6 +43,8 @@ test('suggested books are reviewed, then only the ticked ones are marked found',
 	await page.locator('input[type=file]').setInputFiles(PHOTO);
 
 	await expect(page.getByText('Found in your photo')).toBeVisible();
+	// The suggestions are for the still-out list, so the filter is locked until this is done
+	await expect(page.getByRole('combobox').first()).toBeDisabled();
 	expect(sent.mimeType).toBe('image/jpeg');
 	expect(sent.image?.length).toBeGreaterThan(0);
 

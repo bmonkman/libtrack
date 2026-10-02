@@ -13,8 +13,9 @@ const isBookState = (value: unknown): value is BookState =>
 
 const bookRepository = AppDataSource.getRepository(Book);
 
-// Vercel rejects request bodies over 4.5 MB; the frontend shrinks photos well below this
-const MAX_PHOTO_BYTES = 4 * 1024 * 1024;
+// Vercel rejects request bodies over 4.5 MB, and base64 adds a third, so 3 MB of photo is the
+// most that can arrive. The frontend sends about 0.5 MB.
+const MAX_PHOTO_BYTES = 3 * 1024 * 1024;
 const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
 
 // POST /books/identify: which of the user's still-out books are in this photo? Changes

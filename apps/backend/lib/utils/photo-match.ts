@@ -54,19 +54,24 @@ export function parseMatches(
   responseText: string | undefined,
   books: CandidateBook[]
 ): PhotoMatches {
-  let parsed: { sure?: unknown; maybe?: unknown };
+  // Anything but both lists is unreadable, never "no matches"
+  let parsed: { sure?: unknown; maybe?: unknown } | null = null;
   try {
     parsed = JSON.parse(responseText ?? '');
   } catch {
+    // handled below
+  }
+  if (!Array.isArray(parsed?.sure) || !Array.isArray(parsed?.maybe)) {
     throw new Error('Photo matching returned an unreadable answer');
   }
 
-  const toIds = (numbers: unknown): string[] =>
-    Array.isArray(numbers)
-      ? numbers
-          .filter((n): n is number => Number.isInteger(n) && n >= 1 && n <= books.length)
-          .map((n) => books[n - 1].id)
-      : [];
+  const toIds = (numbers: unknown[]): string[] =>
+    numbers
+      .filter(
+        (n): n is number =>
+          typeof n === 'number' && Number.isInteger(n) && n >= 1 && n <= books.length
+      )
+      .map((n) => books[n - 1].id);
 
   const sure = [...new Set(toIds(parsed.sure))];
   const maybe = [...new Set(toIds(parsed.maybe))].filter((id) => !sure.includes(id));
@@ -89,11 +94,12 @@ function defaultClient(): GeminiClient {
 export async function findBooksInPhoto(
   image: { data: string; mimeType: string }, // base64
   books: CandidateBook[],
-  client: GeminiClient = defaultClient()
+  client?: GeminiClient
 ): Promise<PhotoMatches> {
   if (books.length === 0) {
     return { sure: [], maybe: [] };
   }
+  const gemini = client ?? defaultClient();
 
   const request = {
     contents: [
@@ -115,7 +121,7 @@ export async function findBooksInPhoto(
 
   for (const [i, model] of PHOTO_MATCH_MODELS.entries()) {
     try {
-      const response = await client.models.generateContent({ ...request, model });
+      const response = await gemini.models.generateContent({ ...request, model });
       return parseMatches(response.text, books);
     } catch (error) {
       if (!isBusy(error) || i === PHOTO_MATCH_MODELS.length - 1) throw error;

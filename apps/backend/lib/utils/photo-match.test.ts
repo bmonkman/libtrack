@@ -37,8 +37,16 @@ test('out-of-range, repeated and non-integer numbers are dropped; sure beats may
 });
 
 test('an unreadable answer throws instead of looking like "nothing found"', () => {
-  assert.throws(() => parseMatches('not json', books), /unreadable/);
-  assert.throws(() => parseMatches(undefined, books), /unreadable/);
+  for (const answer of [
+    'not json',
+    undefined,
+    '{}',
+    'null',
+    '{"sure":"unknown","maybe":[]}',
+    '{"sure":[1]}',
+  ]) {
+    assert.throws(() => parseMatches(answer, books), /unreadable/, String(answer));
+  }
 });
 
 test('sends the photo and the numbered list, and asks for JSON', async () => {
@@ -59,6 +67,19 @@ test('sends the photo and the numbered list, and asks for JSON', async () => {
   assert.deepEqual(photo, { inlineData: { data: 'aW1n', mimeType: 'image/jpeg' } });
   assert.match(prompt.text, /2\. Corduroy/);
   assert.equal(request.config.responseMimeType, 'application/json');
+});
+
+test('with no books still out, nothing is called, even without an API key', async () => {
+  const key = process.env.GEMINI_API_KEY;
+  delete process.env.GEMINI_API_KEY;
+  try {
+    assert.deepEqual(await findBooksInPhoto({ data: '', mimeType: 'image/jpeg' }, []), {
+      sure: [],
+      maybe: [],
+    });
+  } finally {
+    if (key !== undefined) process.env.GEMINI_API_KEY = key;
+  }
 });
 
 test('with no books still out, the model is not called', async () => {

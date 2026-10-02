@@ -214,6 +214,8 @@
 				<select
 					bind:value={selectedFilter}
 					on:change={loadBooks}
+					disabled={photoStatus !== 'idle' || !!review}
+					title={review ? 'Finish or cancel the photo review first' : undefined}
 					class="mt-1 block w-40 rounded-md border-gray-300 py-2 pl-3 pr-10 text-base focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
 				>
 					{#each filters as filter (filter.value)}
