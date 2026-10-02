@@ -1,55 +1,15 @@
 import type {
-	Book,
-	BookState,
-	LibraryCard,
-	User,
-	PasskeyRegistrationRequest,
-	PasskeyLoginRequest
-} from './types';
+	AuthenticationResponseJSON,
+	PublicKeyCredentialCreationOptionsJSON,
+	PublicKeyCredentialRequestOptionsJSON,
+	RegistrationResponseJSON
+} from '@simplewebauthn/browser';
+import type { Book, BookState, LibraryCard, User } from './types';
 
 // Use the Vercel deployment URL in production, or local API in development
 const API_BASE_URL =
 	import.meta.env.PUBLIC_API_BASE_URL ||
 	(import.meta.env.DEV ? 'http://localhost:3000/api' : 'https://libtrack-api.vercel.app/api');
-
-// Define interfaces for WebAuthn types
-interface WebAuthnRegistrationOptions {
-	challenge: ArrayBuffer;
-	rp: {
-		name: string;
-		id: string;
-	};
-	user: {
-		id: ArrayBuffer;
-		name: string;
-		displayName: string;
-	};
-	pubKeyCredParams: Array<{ type: string; alg: number }>;
-	timeout?: number;
-	attestation?: string;
-	authenticatorSelection?: {
-		authenticatorAttachment?: string;
-		requireResidentKey?: boolean;
-		userVerification?: string;
-	};
-	excludeCredentials?: Array<{
-		id: ArrayBuffer;
-		type: string;
-		transports?: string[];
-	}>;
-}
-
-interface WebAuthnLoginOptions {
-	challenge: ArrayBuffer;
-	timeout?: number;
-	rpId?: string;
-	allowCredentials?: Array<{
-		id: ArrayBuffer;
-		type: string;
-		transports?: string[];
-	}>;
-	userVerification?: string;
-}
 
 interface AuthResponse {
 	user: User;
@@ -116,102 +76,51 @@ async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise
 		if (response.status === 401) {
 			setAuthToken(null);
 		}
-		throw new Error(`API error: ${response.statusText}`);
+		const body = await response.json().catch(() => null);
+		throw new Error(body?.error ?? `API error: ${response.statusText}`);
 	}
 
 	return response.json();
 }
 
-// Convert base64 string to ArrayBuffer
-function base64UrlToArrayBuffer(base64Url: string): ArrayBuffer {
-	const padding = '='.repeat((4 - (base64Url.length % 4)) % 4);
-	const base64 = (base64Url + padding).replace(/-/g, '+').replace(/_/g, '/');
-	const rawData = atob(base64);
-	const buffer = new Uint8Array(rawData.length);
-
-	for (let i = 0; i < rawData.length; i++) {
-		buffer[i] = rawData.charCodeAt(i);
-	}
-	return buffer.buffer;
-}
-
-// Auth API
+// Auth API. Each passkey flow is two calls: fetch options, let the browser create or use the
+// passkey, then send the browser's response back for the server to verify.
 export const authApi = {
-	getRegistrationOptions: async (username: string): Promise<WebAuthnRegistrationOptions> => {
-		const response = await fetchApi<Partial<WebAuthnRegistrationOptions>>(
-			'/auth/registration-options',
-			{
-				method: 'POST',
-				body: JSON.stringify({ username })
-			}
-		);
-
-		// Convert base64 strings from the server to ArrayBuffers required by the WebAuthn API
-		if (typeof response.challenge === 'string') {
-			response.challenge = base64UrlToArrayBuffer(response.challenge);
-		}
-
-		// Ensure user.id is properly converted to ArrayBuffer
-		if (response.user && response.user.id && typeof response.user.id === 'string') {
-			response.user.id = base64UrlToArrayBuffer(response.user.id);
-		}
-
-		if (response.excludeCredentials) {
-			response.excludeCredentials = response.excludeCredentials.map((cred) => ({
-				...cred,
-				id: typeof cred.id === 'string' ? base64UrlToArrayBuffer(cred.id) : cred.id
-			}));
-		}
-
-		return response as WebAuthnRegistrationOptions;
-	},
-
-	register: async (data: PasskeyRegistrationRequest): Promise<User> => {
-		const response = await fetchApi<AuthResponse>('/auth/register', {
+	getRegistrationOptions: (username: string) =>
+		fetchApi<PublicKeyCredentialCreationOptionsJSON>('/auth/registration-options', {
 			method: 'POST',
-			body: JSON.stringify(data)
-		});
-		setAuthToken(response.token);
-		return response.user;
-	},
+			body: JSON.stringify({ username })
+		}),
 
-	getLoginOptions: async (): Promise<WebAuthnLoginOptions> => {
-		const response = await fetchApi<Partial<WebAuthnLoginOptions>>('/auth/login-options', {
-			method: 'POST'
-		});
-
-		// Convert base64 strings from the server to ArrayBuffers required by the WebAuthn API
-		if (typeof response.challenge === 'string') {
-			response.challenge = base64UrlToArrayBuffer(response.challenge);
-		}
-
-		if (response.allowCredentials) {
-			response.allowCredentials = response.allowCredentials.map((cred) => ({
-				...cred,
-				id: typeof cred.id === 'string' ? base64UrlToArrayBuffer(cred.id) : cred.id
-			}));
-		}
-
-		return response as WebAuthnLoginOptions;
-	},
-
-	login: async (data: PasskeyLoginRequest): Promise<User> => {
-		const response = await fetchApi<AuthResponse>('/auth/login', {
+	register: async (response: RegistrationResponseJSON): Promise<User> => {
+		const result = await fetchApi<AuthResponse>('/auth/register', {
 			method: 'POST',
-			body: JSON.stringify(data)
+			body: JSON.stringify({ response })
 		});
-		setAuthToken(response.token);
-		return response.user;
+		setAuthToken(result.token);
+		return result.user;
 	},
 
-	verify: async (credentialId: string): Promise<User> => {
-		const response = await fetchApi<AuthResponse>('/auth/verify', {
+	getLoginOptions: () =>
+		fetchApi<PublicKeyCredentialRequestOptionsJSON>('/auth/login-options', { method: 'POST' }),
+
+	login: async (response: AuthenticationResponseJSON): Promise<User> => {
+		const result = await fetchApi<AuthResponse>('/auth/login', {
 			method: 'POST',
-			body: JSON.stringify({ credentialId })
+			body: JSON.stringify({ response })
 		});
-		setAuthToken(response.token);
-		return response.user;
+		setAuthToken(result.token);
+		return result.user;
 	},
+
+	getAddPasskeyOptions: () =>
+		fetchApi<PublicKeyCredentialCreationOptionsJSON>('/auth/passkey-options', { method: 'POST' }),
+
+	addPasskey: (response: RegistrationResponseJSON) =>
+		fetchApi<{ success: boolean }>('/auth/passkeys', {
+			method: 'POST',
+			body: JSON.stringify({ response })
+		}),
 
 	getCurrentUser: () => fetchApi<{ user: User }>('/auth/me').then((res) => res.user),
 

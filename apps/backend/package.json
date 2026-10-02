@@ -8,11 +8,12 @@
     "format": "prettier --write \"**/*.ts\"",
     "format:check": "prettier --check \"**/*.ts\"",
     "vercel:dev": "vercel dev --listen 3000",
-    "migration:generate": "typeorm-ts-node-commonjs migration:generate -d api/ormconfig.ts src/migration/<name>",
+    "migration:generate": "typeorm-ts-node-commonjs migration:generate -d api/ormconfig.ts",
     "migration:run": "typeorm-ts-node-commonjs migration:run -d api/ormconfig.ts",
     "migration:revert": "typeorm-ts-node-commonjs migration:revert -d api/ormconfig.ts"
   },
   "dependencies": {
+    "@simplewebauthn/server": "^14.0.3",
     "@vercel/node": "^3.0.0",
     "axios": "^1.9.0",
     "cheerio": "^1.0.0",

@@ -4,6 +4,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { authApi, getStoredAuthToken } from '$lib/api';
+	import { startRegistration } from '@simplewebauthn/browser';
 	import { writable } from 'svelte/store';
 	import type { User } from '$lib/types';
 
@@ -60,6 +61,22 @@
 		}
 	}
 
+	let passkeyStatus = '';
+
+	// Registers a passkey on this device for the signed-in account (e.g. a second device)
+	async function handleAddPasskey() {
+		passkeyStatus = '';
+		try {
+			const optionsJSON = await authApi.getAddPasskeyOptions();
+			const response = await startRegistration({ optionsJSON });
+			await authApi.addPasskey(response);
+			passkeyStatus = 'Passkey added';
+		} catch (error) {
+			console.error('Add passkey error:', error);
+			passkeyStatus = error instanceof Error ? error.message : 'Could not add passkey';
+		}
+	}
+
 	function handleLogout() {
 		authApi.logout();
 		currentUser.set(null);
@@ -89,6 +106,14 @@
 							href="/library-cards"
 							class="inline-flex items-center rounded-md px-2 py-1 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-gray-900"
 							>Library Cards</a
+						>
+						{#if passkeyStatus}
+							<span class="text-sm text-gray-500">{passkeyStatus}</span>
+						{/if}
+						<button
+							on:click={handleAddPasskey}
+							class="inline-flex items-center rounded-md px-2 py-1 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+							>Add passkey</button
 						>
 						<button
 							on:click={handleLogout}

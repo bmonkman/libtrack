@@ -45,6 +45,7 @@
 		"vitest": "^3.0.0"
 	},
 	"dependencies": {
+		"@simplewebauthn/browser": "^14.0.0",
 		"jsbarcode": "^3.11.6"
 	}
 }

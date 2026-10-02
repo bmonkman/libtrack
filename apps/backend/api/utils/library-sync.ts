@@ -52,7 +52,6 @@ export async function getNWPLBooks(cardNumber: string, pin: string): Promise<Boo
     if (!csrfToken) {
       throw new Error('CSRF token not found');
     }
-    console.log('CSRF Token:', csrfToken);
 
     // Get all cookies from the login page response
     const cookies = loginPageResponse.headers['set-cookie'] || [];
@@ -109,16 +108,12 @@ export async function getNWPLBooks(cardNumber: string, pin: string): Promise<Boo
     // Extract session ID and access token from cookies
     const sessionIdMatch = sessionCookieString.match(/(?:^|;\s*)session_id=([^;]*)/);
     const accessTokenMatch = sessionCookieString.match(/(?:^|;\s*)bc_access_token=([^;]*)/);
-    console.log('Session Cookie String:', sessionCookieString);
     if (!sessionIdMatch || !accessTokenMatch) {
       throw new Error('Failed to extract session tokens');
     }
 
     let sessionId = sessionIdMatch[1];
     let accessToken = accessTokenMatch[1];
-
-    console.log('Session ID:', sessionId);
-    console.log('Access Token:', accessToken);
 
     // The account ID is normally in the response or can be extracted from the session ID
     // For this example, we'll extract it from the session ID which often has format: "session_id-accountId"
@@ -150,24 +145,6 @@ export async function getNWPLBooks(cardNumber: string, pin: string): Promise<Boo
       'Cache-Control': 'no-cache',
       Priority: 'u=0',
     };
-    console.log('Headers:', headers);
-
-    axios.interceptors.request.use(
-      (config) => {
-        console.log('Request:');
-        console.log('  Method:', config.method);
-        console.log('  URL:', config.url);
-        console.log('  Headers:', config.headers);
-        if (config.data) {
-          console.log('  Body:', config.data);
-        }
-        return config;
-      },
-      (error) => {
-        console.error('Request Error:', error);
-        return Promise.reject(error);
-      }
-    );
 
     // Step 4: Fetch checked out books
     const checkedOutResponse = await axios.get(
@@ -209,7 +186,10 @@ export async function getNWPLBooks(cardNumber: string, pin: string): Promise<Boo
 
     return books;
   } catch (error) {
-    console.error('Error fetching NWPL books:', error);
-    throw new Error(`Failed to fetch books from NWPL: ${error}`);
+    // Never log the raw axios error: its config holds the login request body, PIN included
+    const detail = axios.isAxiosError(error)
+      ? `${error.response?.status ?? 'no response'} ${error.config?.method?.toUpperCase()} ${error.config?.url?.split('?')[0]}`
+      : String(error);
+    throw new Error(`Failed to fetch books from NWPL: ${detail}`);
   }
 }

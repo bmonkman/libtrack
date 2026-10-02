@@ -1,54 +1,44 @@
-import { Entity, PrimaryColumn, Column, ManyToOne } from 'typeorm';
+import { Entity, PrimaryColumn, Column, ManyToOne, JoinColumn, CreateDateColumn } from 'typeorm';
 import { User } from './User';
-
-export enum AuthenticatorAttachment {
-  PLATFORM = 'platform',
-  CROSS_PLATFORM = 'cross-platform',
-}
-
-export enum Transport {
-  USB = 'usb',
-  NFC = 'nfc',
-  BLE = 'ble',
-  INTERNAL = 'internal',
-}
 
 @Entity()
 export class PasskeyCredential {
+  // base64url credential ID, as reported by the authenticator
   @PrimaryColumn()
   id!: string;
 
+  // base64url-encoded COSE public key
   @Column()
   publicKey!: string;
 
-  @Column()
-  algorithm!: string;
-
+  // WebAuthn signature counters are uint32, which overflows Postgres integer
   @Column({
-    type: 'enum',
-    enum: AuthenticatorAttachment,
+    type: 'bigint',
+    default: 0,
+    transformer: { to: (value: number) => value, from: (value: string) => Number(value) },
   })
-  authenticatorAttachment!: AuthenticatorAttachment;
+  counter!: number;
 
   @Column('simple-array')
-  transports!: Transport[];
+  transports!: string[];
+
+  // 'singleDevice' or 'multiDevice' (synced passkey)
+  @Column()
+  deviceType!: string;
+
+  @Column()
+  backedUp!: boolean;
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt!: Date;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  lastUsedAt?: Date;
+
+  @Column()
+  userId!: string;
 
   @ManyToOne(() => User, (user) => user.credentials)
-  user!: User;
-
-  constructor(
-    id: string,
-    publicKey: string,
-    algorithm: string,
-    authenticatorAttachment: AuthenticatorAttachment,
-    transports: Transport[],
-    user: User
-  ) {
-    this.id = id;
-    this.publicKey = publicKey;
-    this.algorithm = algorithm;
-    this.authenticatorAttachment = authenticatorAttachment;
-    this.transports = transports;
-    this.user = user;
-  }
+  @JoinColumn({ name: 'userId' })
+  user?: User;
 }
