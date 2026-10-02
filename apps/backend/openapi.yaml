@@ -15,8 +15,9 @@ components:
     bearerAuth:
       type: http
       scheme: bearer
-      bearerFormat: JWT
-      description: 72-hour JWT returned by /auth/register and /auth/login
+      description: >-
+        Session token returned by /auth/register and /auth/login. The session ends after 90 days
+        without use, or at /auth/logout.
     cronSecret:
       type: http
       scheme: bearer
@@ -97,7 +98,7 @@ components:
           $ref: '#/components/schemas/User'
         token:
           type: string
-          description: JWT for the Authorization header
+          description: Session token for the Authorization header
 
     Passkey:
       type: object
@@ -277,6 +278,30 @@ paths:
                 properties:
                   user:
                     $ref: '#/components/schemas/User'
+        '401':
+          description: Authentication required
+
+  /auth/logout:
+    post:
+      summary: End this device's session
+      tags: [Authentication]
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Signed out
+        '401':
+          description: Authentication required
+
+  /auth/sign-out-others:
+    post:
+      summary: End every session of the signed-in user except this one
+      tags: [Authentication]
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Other devices signed out
         '401':
           description: Authentication required
 

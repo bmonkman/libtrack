@@ -13,6 +13,8 @@
 	let busy = false;
 	let error: string | null = null;
 	let message: string | null = null;
+	let devicesError: string | null = null;
+	let devicesMessage: string | null = null;
 
 	function formatDate(dateString?: string): string {
 		if (!dateString) return 'Never';
@@ -69,10 +71,27 @@
 		}
 	}
 
-	function logout() {
-		authApi.logout();
+	async function logout() {
+		await authApi.logout();
 		currentUser.set(null);
 		goto('/');
+	}
+
+	async function signOutOtherDevices() {
+		if (!confirm('Sign out on every other device? They will need a passkey to sign in again.'))
+			return;
+
+		busy = true;
+		devicesError = null;
+		devicesMessage = null;
+		try {
+			await authApi.signOutOtherDevices();
+			devicesMessage = 'Signed out on other devices';
+		} catch (e) {
+			devicesError = e instanceof Error ? e.message : 'Could not sign out other devices';
+		} finally {
+			busy = false;
+		}
 	}
 
 	onMount(loadPasskeys);
@@ -92,6 +111,30 @@
 		>
 			Log out
 		</button>
+	</div>
+
+	<div class="border-t border-gray-200 px-4 py-5 sm:px-6">
+		<div class="flex items-center justify-between">
+			<div>
+				<h3 class="text-base font-medium text-gray-900">Other devices</h3>
+				<p class="mt-1 text-sm text-gray-500">
+					You stay signed in until you haven't used LibTrack for 90 days.
+				</p>
+			</div>
+			<button
+				on:click={signOutOtherDevices}
+				disabled={busy}
+				class="shrink-0 rounded-md bg-gray-200 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-300 disabled:opacity-50"
+			>
+				Sign out other devices
+			</button>
+		</div>
+		{#if devicesError}
+			<p class="mt-4 text-sm text-red-600">{devicesError}</p>
+		{/if}
+		{#if devicesMessage}
+			<p class="mt-4 text-sm text-green-700">{devicesMessage}</p>
+		{/if}
 	</div>
 
 	<div class="border-t border-gray-200 px-4 py-5 sm:px-6">

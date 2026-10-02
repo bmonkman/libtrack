@@ -51,6 +51,16 @@ const getAuthToken = (): string | null => {
 	return authToken;
 };
 
+// Carries the HTTP status so callers can tell "not signed in" (401) apart from other failures
+export class ApiError extends Error {
+	constructor(
+		message: string,
+		readonly status: number
+	) {
+		super(message);
+	}
+}
+
 async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
 	// Add authentication header if token exists
 	const headers: Record<string, string> = {
@@ -76,7 +86,7 @@ async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise
 			setAuthToken(null);
 		}
 		const body = await response.json().catch(() => null);
-		throw new Error(body?.error ?? `API error: ${response.statusText}`);
+		throw new ApiError(body?.error ?? `API error: ${response.statusText}`, response.status);
 	}
 
 	if (response.status === 204) {
@@ -131,10 +141,19 @@ export const authApi = {
 
 	getCurrentUser: () => fetchApi<{ user: User }>('/auth/me').then((res) => res.user),
 
-	logout: () => {
-		setAuthToken(null);
-		return Promise.resolve();
+	// Ends the session on the server too, so the token stops working even if a copy exists.
+	// The local sign-out happens whether or not the server could be reached.
+	logout: async () => {
+		try {
+			await fetchApi<void>('/auth/logout', { method: 'POST' });
+		} catch (error) {
+			console.error('Could not end the session on the server:', error);
+		} finally {
+			setAuthToken(null);
+		}
 	},
+
+	signOutOtherDevices: () => fetchApi<void>('/auth/sign-out-others', { method: 'POST' }),
 
 	isAuthenticated: () => !!authToken
 };

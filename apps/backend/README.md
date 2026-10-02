@@ -24,7 +24,7 @@ The repo root has one-command setup (`npm run setup`, then `npm run dev`); see t
 To work on the backend alone:
 
 ```bash
-cp .env.example .env        # set JWT_SECRET; DATABASE_URL points at the local Docker Postgres
+cp .env.example .env        # DATABASE_URL points at the local Docker Postgres
 npm install
 docker compose up -d --wait db    # from the repo root
 npm run migration:run
@@ -38,7 +38,6 @@ Never point `.env` at the production database, and don't `vercel env pull` over 
 | Name | Purpose |
 | --- | --- |
 | `DATABASE_URL` | Postgres connection string. TLS comes from the URL (`sslmode=require` on Neon). |
-| `JWT_SECRET` | Signs sign-in tokens. Required; there is no default. |
 | `CRON_SECRET` | Bearer token the sync cron must send. Vercel Cron sends it automatically. |
 | `ALLOWED_ORIGIN` | The frontend's URL. Used for CORS and as the passkey's expected origin. |
 | `WEBAUTHN_RP_ID` | The frontend's domain (the passkey "relying party"). Defaults to `localhost`. |

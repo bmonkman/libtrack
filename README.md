@@ -51,7 +51,7 @@ An optional dev container is described in [.devcontainer/README.md](.devcontaine
 Requires Docker and Node 22.
 
 ```bash
-cp apps/backend/.env.example apps/backend/.env          # then set JWT_SECRET
+cp apps/backend/.env.example apps/backend/.env
 cp apps/frontend/.env.example apps/frontend/.env.local
 npm install && npm run setup                            # installs, starts Postgres, migrates
 npm run dev                                             # http://localhost:5173

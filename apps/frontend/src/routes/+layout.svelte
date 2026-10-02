@@ -3,13 +3,15 @@
 	import { onMount, setContext } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { authApi, getStoredAuthToken } from '$lib/api';
+	import { ApiError, authApi, getStoredAuthToken } from '$lib/api';
 	import { writable } from 'svelte/store';
 	import type { User } from '$lib/types';
 
 	// Store for the current user with proper typing
 	const currentUser = writable<User | null>(null);
 	const isLoading = writable(true);
+	// The sign-in check failed for a reason other than an invalid session (offline, server down)
+	let authCheckFailed = false;
 
 	// Make user store available to all components via context
 	setContext('currentUser', currentUser);
@@ -18,15 +20,18 @@
 	// Function to check authentication
 	async function checkAuth() {
 		isLoading.set(true);
+		authCheckFailed = false;
 		if (getStoredAuthToken() || authApi.isAuthenticated()) {
 			try {
 				const user = await authApi.getCurrentUser();
 				currentUser.set(user);
 			} catch (error) {
 				console.error('Failed to fetch current user:', error);
-				// Handle invalid token
-				authApi.logout();
+				// Only a 401 means the session is gone (fetchApi has already dropped the token).
+				// Anything else, like a phone still reconnecting after being in the background,
+				// keeps the token so the user stays signed in and can retry.
 				currentUser.set(null);
+				authCheckFailed = !(error instanceof ApiError && error.status === 401);
 			}
 		}
 		isLoading.set(false);
@@ -40,7 +45,7 @@
 		const protectedRoutes = ['/books', '/library-cards', '/account'];
 		const isProtectedRoute = protectedRoutes.some((route) => $page.url.pathname.startsWith(route));
 
-		if (isProtectedRoute && !$currentUser && !$isLoading) {
+		if (isProtectedRoute && !$currentUser && !$isLoading && !authCheckFailed) {
 			goto('/');
 		}
 	});
@@ -54,7 +59,7 @@
 				$page.url.pathname.startsWith(route)
 			);
 
-			if (isProtectedRoute && !$currentUser && !$isLoading) {
+			if (isProtectedRoute && !$currentUser && !$isLoading && !authCheckFailed) {
 				goto('/');
 			}
 		}
@@ -96,6 +101,18 @@
 	</nav>
 
 	<main class="mx-auto max-w-7xl py-6 sm:px-6 lg:px-8">
-		<slot />
+		{#if authCheckFailed}
+			<div class="bg-white px-4 py-5 text-center shadow sm:rounded-lg sm:px-6">
+				<p class="text-gray-900">Couldn't reach LibTrack. You're still signed in.</p>
+				<button
+					on:click={checkAuth}
+					class="mt-4 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+				>
+					Try again
+				</button>
+			</div>
+		{:else}
+			<slot />
+		{/if}
 	</main>
 </div>

@@ -34,3 +34,16 @@ test('@screenshots sign-in page', async ({ page }, testInfo) => {
 		fullPage: true
 	});
 });
+
+test('@screenshots server unreachable while signed in', async ({
+	page,
+	signedInUser: _
+}, testInfo) => {
+	await page.route('**/auth/me', (route) => route.abort('internetdisconnected'));
+	await page.reload();
+	await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible();
+	await page.screenshot({
+		path: `screenshots/${testInfo.project.name}-unreachable.png`,
+		fullPage: true
+	});
+});
